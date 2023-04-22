@@ -1,0 +1,209 @@
+object GPSPointForm: TGPSPointForm
+  Left = 720
+  Height = 198
+  Top = 322
+  Width = 226
+  ActiveControl = edGPSPointLabel
+  AutoSize = True
+  BorderStyle = bsDialog
+  Caption = 'GPS Location'
+  ClientHeight = 198
+  ClientWidth = 226
+  OnShow = FormShow
+  LCLVersion = '2.3.0.0'
+  object ButtonPanel1: TButtonPanel
+    AnchorSideTop.Control = cbSymbols
+    AnchorSideTop.Side = asrBottom
+    Left = 6
+    Height = 34
+    Top = 158
+    Width = 214
+    Anchors = [akLeft, akRight]
+    OKButton.Name = 'OKButton'
+    OKButton.DefaultCaption = True
+    HelpButton.Name = 'HelpButton'
+    HelpButton.DefaultCaption = True
+    CloseButton.Name = 'CloseButton'
+    CloseButton.DefaultCaption = True
+    CancelButton.Name = 'CancelButton'
+    CancelButton.DefaultCaption = True
+    TabOrder = 1
+    ShowButtons = [pbOK, pbCancel]
+  end
+  object Panel1: TPanel
+    Left = 12
+    Height = 140
+    Top = 12
+    Width = 202
+    Align = alClient
+    AutoSize = True
+    BorderSpacing.Left = 12
+    BorderSpacing.Top = 12
+    BorderSpacing.Right = 12
+    BevelOuter = bvNone
+    ClientHeight = 140
+    ClientWidth = 202
+    TabOrder = 0
+    object Label1: TLabel
+      AnchorSideLeft.Control = Panel1
+      AnchorSideTop.Control = Panel1
+      Left = 0
+      Height = 15
+      Top = 0
+      Width = 104
+      Caption = 'Name of GPS point:'
+    end
+    object edGPSPointLabel: TEdit
+      AnchorSideLeft.Control = Label1
+      AnchorSideTop.Control = Label1
+      AnchorSideTop.Side = asrBottom
+      Left = 0
+      Height = 23
+      Top = 17
+      Width = 200
+      BorderSpacing.Top = 2
+      TabOrder = 0
+    end
+    object Notebook1: TNotebook
+      AnchorSideLeft.Control = edGPSPointLabel
+      AnchorSideTop.Control = edGPSPointLabel
+      AnchorSideTop.Side = asrBottom
+      AnchorSideRight.Control = edGPSPointLabel
+      AnchorSideRight.Side = asrBottom
+      Left = 0
+      Height = 80
+      Top = 48
+      Width = 200
+      PageIndex = 0
+      AutoSize = True
+      Anchors = [akTop, akLeft, akRight]
+      BorderSpacing.Top = 8
+      TabOrder = 1
+      object pgSymbols: TPage
+        object clbSymbolColor: TColorBox
+          AnchorSideLeft.Control = cbSymbols
+          AnchorSideTop.Control = pgSymbols
+          AnchorSideRight.Control = pgSymbols
+          AnchorSideRight.Side = asrBottom
+          Left = 51
+          Height = 22
+          Top = 4
+          Width = 149
+          Style = [cbStandardColors, cbExtendedColors, cbPrettyNames]
+          Anchors = [akTop, akLeft, akRight]
+          BorderSpacing.Top = 4
+          BorderSpacing.Bottom = 4
+          DropDownCount = 24
+          ItemHeight = 16
+          TabOrder = 0
+        end
+        object Label2: TLabel
+          AnchorSideLeft.Control = pgSymbols
+          AnchorSideTop.Control = clbSymbolColor
+          AnchorSideTop.Side = asrCenter
+          Left = 0
+          Height = 15
+          Top = 8
+          Width = 32
+          BorderSpacing.Top = 8
+          Caption = 'Color:'
+        end
+        object lblSymbol: TLabel
+          AnchorSideLeft.Control = pgSymbols
+          AnchorSideTop.Control = cbSymbols
+          AnchorSideTop.Side = asrCenter
+          Left = 0
+          Height = 15
+          Top = 61
+          Width = 43
+          BorderSpacing.Top = 8
+          Caption = 'Symbol:'
+        end
+        object cbSymbols: TComboBox
+          AnchorSideLeft.Control = lblSymbol
+          AnchorSideLeft.Side = asrBottom
+          AnchorSideTop.Control = seSize
+          AnchorSideTop.Side = asrBottom
+          AnchorSideRight.Control = pgSymbols
+          AnchorSideRight.Side = asrBottom
+          Left = 51
+          Height = 23
+          Top = 57
+          Width = 149
+          Anchors = [akTop, akLeft, akRight]
+          BorderSpacing.Left = 8
+          BorderSpacing.Top = 4
+          ItemHeight = 15
+          ItemIndex = 0
+          Items.Strings = (
+            'plus ( + )'
+            'corss (⛌)'
+            'filled circle (⚫)'
+            'open circle (⚪)'
+            'filled square  (■)'
+            'open square (□)'
+          )
+          Style = csDropDownList
+          TabOrder = 1
+          Text = 'plus ( + )'
+        end
+        object lblSize: TLabel
+          AnchorSideLeft.Control = pgSymbols
+          AnchorSideTop.Control = seSize
+          AnchorSideTop.Side = asrCenter
+          Left = 0
+          Height = 15
+          Top = 34
+          Width = 20
+          Caption = 'Size'
+        end
+        object seSize: TSpinEdit
+          AnchorSideLeft.Control = cbSymbols
+          AnchorSideTop.Control = clbSymbolColor
+          AnchorSideTop.Side = asrBottom
+          AnchorSideRight.Control = cbSymbols
+          AnchorSideRight.Side = asrBottom
+          Left = 51
+          Height = 23
+          Top = 30
+          Width = 149
+          Alignment = taRightJustify
+          Anchors = [akTop, akLeft, akRight]
+          MaxValue = 50
+          MinValue = 1
+          TabOrder = 2
+          Value = 1
+        end
+      end
+      object pgImageIndex: TPage
+        object cmbImageIndex: TComboBox
+          AnchorSideLeft.Control = lblImageIndex
+          AnchorSideLeft.Side = asrBottom
+          AnchorSideTop.Control = pgImageIndex
+          AnchorSideRight.Control = pgImageIndex
+          AnchorSideRight.Side = asrBottom
+          Left = 66
+          Height = 58
+          Top = 0
+          Width = 134
+          Anchors = [akTop, akLeft, akRight]
+          BorderSpacing.Left = 8
+          ItemHeight = 52
+          OnDrawItem = cmbImageIndexDrawItem
+          Style = csOwnerDrawFixed
+          TabOrder = 0
+        end
+        object lblImageIndex: TLabel
+          AnchorSideLeft.Control = pgImageIndex
+          AnchorSideTop.Control = cmbImageIndex
+          AnchorSideTop.Side = asrCenter
+          Left = 0
+          Height = 15
+          Top = 22
+          Width = 58
+          Caption = 'POI Image:'
+        end
+      end
+    end
+  end
+end

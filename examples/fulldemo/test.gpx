@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx xmlns="http://www.topografix.com/GPX/1/1" xmlns:gpsies="http://www.gpsies.com/GPX/1/0" creator="GPSies http://www.gpsies.com - Mariposa-yosemite-monoLake" version="1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd http://www.gpsies.com/GPX/1/0 http://www.gpsies.com/gpsies.xsd">
+  <metadata>
+    <name>Yosemite Tour 1 - Trans Yosemite</name>
+    <link href="http://www.gpsies.com/map.do?fileId=dmpqsohxkxiiamce">
+      <text>Yosemite Tour 1 - Trans Yosemite</text>
+    </link>
+    <time>2012-09-26T14:44:55Z</time>
+    <extensions>
+      <gpsies:property>one-way trip</gpsies:property>
+      <gpsies:trackLengthMeter>190846.19124062784</gpsies:trackLengthMeter>
+      <gpsies:totalAscentMeter>4494.0</gpsies:totalAscentMeter>
+      <gpsies:totalDescentMeter>3053.0</gpsies:totalDescentMeter>
+      <gpsies:minHeightMeter>364.0</gpsies:minHeightMeter>
+      <gpsies:maxHeightMeter>3038.0</gpsies:maxHeightMeter>
+    </extensions>
+  </metadata>
+  <trk>
+    <name>Yosemite Tour 1 - Trans Yosemite</name>
+    <link href="http://www.gpsies.com/map.do?fileId=dmpqsohxkxiiamce" />
+    <trkseg>
+      <trkpt lat="37.49188000" lon="-119.72060">
+        <ele>621.00000</ele>
+        <time>2010-01-01T00:00:00Z</time>
+      </trkpt>
+      <trkpt lat="37.95048000" lon="-119.113570">
+        <ele>2085.0000</ele>
+        <time>2010-01-01T19:05:04Z</time>
+      </trkpt>
+    </trkseg>
+  </trk>
+</gpx>
+

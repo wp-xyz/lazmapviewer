@@ -1,0 +1,139 @@
+object MainForm: TMainForm
+  Left = 285
+  Height = 619
+  Top = 131
+  Width = 933
+  Caption = 'MainForm'
+  ClientHeight = 619
+  ClientWidth = 933
+  OnActivate = FormActivate
+  LCLVersion = '2.3.0.0'
+  object MapView: TMapView
+    Left = 0
+    Height = 536
+    Top = 0
+    Width = 933
+    Align = alClient
+    CachePath = '../../../../cache/'
+    DownloadEngine = MapView.BuiltInDLE
+    DrawingEngine = MapView.BuiltInDE
+    Font.Color = clBlack
+    MapProvider = 'OpenStreetMap Mapnik'
+    UseThreads = True
+    OnZoomChange = MapViewZoomChange
+  end
+  object Panel1: TPanel
+    Left = 8
+    Height = 67
+    Top = 544
+    Width = 917
+    Align = alBottom
+    AutoSize = True
+    BorderSpacing.Around = 8
+    BevelOuter = bvNone
+    ClientHeight = 67
+    ClientWidth = 917
+    TabOrder = 1
+    object CheckBox1: TCheckBox
+      AnchorSideLeft.Control = Panel1
+      AnchorSideTop.Control = Label2
+      AnchorSideTop.Side = asrBottom
+      Left = 0
+      Height = 19
+      Top = 19
+      Width = 155
+      Caption = 'Trans-Yosemite Tour (red)'
+      Checked = True
+      OnChange = CheckBox1Change
+      State = cbChecked
+      TabOrder = 0
+    end
+    object CheckBox2: TCheckBox
+      AnchorSideLeft.Control = CheckBox1
+      AnchorSideLeft.Side = asrBottom
+      AnchorSideTop.Control = CheckBox1
+      Left = 179
+      Height = 19
+      Top = 19
+      Width = 136
+      BorderSpacing.Left = 24
+      Caption = 'Bear Valley Tour (blue)'
+      Checked = True
+      OnChange = CheckBox2Change
+      State = cbChecked
+      TabOrder = 1
+    end
+    object CheckBox3: TCheckBox
+      AnchorSideLeft.Control = CheckBox2
+      AnchorSideLeft.Side = asrBottom
+      AnchorSideTop.Control = CheckBox1
+      Left = 339
+      Height = 19
+      Top = 19
+      Width = 156
+      BorderSpacing.Left = 24
+      Caption = 'Triangle Loop Tour (black)'
+      Checked = True
+      OnChange = CheckBox3Change
+      State = cbChecked
+      TabOrder = 2
+    end
+    object ZoomLabel: TLabel
+      AnchorSideTop.Control = CheckBox1
+      AnchorSideTop.Side = asrCenter
+      AnchorSideRight.Control = Panel1
+      AnchorSideRight.Side = asrBottom
+      Left = 857
+      Height = 15
+      Top = 21
+      Width = 60
+      Anchors = [akTop, akRight]
+      Caption = 'ZoomLabel'
+    end
+    object Label2: TLabel
+      AnchorSideLeft.Control = Panel1
+      AnchorSideTop.Control = Panel1
+      Left = 0
+      Height = 15
+      Top = 0
+      Width = 724
+      BorderSpacing.Bottom = 4
+      Caption = 'Yosemite bike tours (https://www.roadbike.de/rennrad-touren/drei-rennrad-traumtouren-im-yosemite-nationalpark-in-den-usa/)'
+      Font.Style = [fsBold]
+      ParentFont = False
+    end
+    object ComboBox1: TComboBox
+      AnchorSideLeft.Control = Label1
+      AnchorSideLeft.Side = asrBottom
+      AnchorSideTop.Control = CheckBox1
+      AnchorSideTop.Side = asrBottom
+      Left = 79
+      Height = 23
+      Top = 44
+      Width = 273
+      BorderSpacing.Top = 6
+      ItemHeight = 15
+      ItemIndex = 0
+      Items.Strings = (
+        'Google Maps'
+        'Google Satellite'
+        'Open Topo Map'
+      )
+      OnChange = ComboBox1Change
+      Style = csDropDownList
+      TabOrder = 3
+      Text = 'Google Maps'
+    end
+    object Label1: TLabel
+      AnchorSideLeft.Control = Panel1
+      AnchorSideTop.Control = ComboBox1
+      AnchorSideTop.Side = asrCenter
+      Left = 0
+      Height = 15
+      Top = 48
+      Width = 71
+      BorderSpacing.Right = 8
+      Caption = 'Map provider'
+    end
+  end
+end
