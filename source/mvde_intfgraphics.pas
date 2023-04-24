@@ -296,7 +296,7 @@ procedure TMvIntfGraphicsDrawingEngine.PaintToCanvas(ACanvas: TCanvas);
 var
   bmp: TBitmap;
 begin
-  if FCanvas <> nil then begin
+  if ACanvas <> nil then begin
     bmp := TBitmap.Create;
     try
       bmp.PixelFormat := pf32Bit;
