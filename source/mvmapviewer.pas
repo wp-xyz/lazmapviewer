@@ -172,7 +172,7 @@ Type
 
 implementation
 
-uses
+uses                syncobjs,
   GraphType, Types,
   mvJobQueue, mvExtraData, mvDLEFpc,
   {$IFDEF MSWINDOWS}
@@ -615,8 +615,10 @@ procedure TMapView.DrawTrack(const Area: TRealArea; trk: TGPSTrack);
 var
   Old,New: TPoint;
   i: integer;
-  aPt: TRealPoint;
-  LastInside, IsInside: boolean;
+  pt: TRealPointArray;
+  iPt1, iPt2: TPoint;
+  pt1, pt2: TRealPoint;
+  isInside1, isInside2: boolean;
   trkColor: TColor;
   trkWidth: Integer;
 begin
@@ -644,25 +646,52 @@ begin
       trkWidth := mmToPx(trk.LineWidth);
     if trkWidth < 1 then trkWidth := 1;
 
-    LastInside := false;
     DrawingEngine.PenColor := trkColor;
     DrawingEngine.PenWidth := trkWidth;
-    for i:=0 to pred(trk.Points.Count) do
+    pt1 := trk.Points[0].RealPoint;
+    iPt1 := Engine.LonLatToScreen(pt1);
+    isInside1 := PtInsideArea(pt1, Area);
+    for i:=1 to pred(trk.Points.Count) do
     begin
-      aPt := trk.Points[i].RealPoint;
-      IsInside := PtInsideArea(aPt,Area);
-      if IsInside or LastInside then
+      pt2 := trk.Points[i].RealPoint;
+      isInside2 := PtInsideArea(pt2, Area);
+      if isInside1 and isInside2 then
       begin
-        New := Engine.LonLatToScreen(aPt);
-        if i > 0 then
+        // Totally inside
+        iPt2 := Engine.LonLatToScreen(pt2);
+        DrawingEngine.Line(iPt1.X, iPt1.Y, iPt2.X, iPt2.Y);
+        iPt1 := iPt2;
+      end else
+      begin
+        Area.InterSectionWithLine(pt1, pt2, pt);
+        if Length(pt) = 1 then
         begin
-          if not LastInside then
-            Old := Engine.LonLatToScreen(trk.Points[pred(i)].RealPoint);
-          DrawingEngine.Line(Old.X, Old.Y, New.X, New.Y);
-        end;
-        Old := New;
-        LastInside := IsInside;
+          // Coming in
+          if isInside2 then
+          begin
+            iPt1 := Engine.LonLatToScreen(pt[0]);
+            iPt2 := Engine.LonLatToScreen(pt2);
+            DrawingEngine.Line(iPt1.X, iPt1.Y, iPt2.X, iPt2.Y);
+            iPt1 := iPt2;
+          end else
+          // Going out
+          if isInside1 then
+          begin
+            iPt2 := Engine.LonLatToScreen(pt[0]);
+            DrawingEngine.Line(iPt1.X, iPt1.Y, iPt2.X, iPt2.Y);
+          end;
+        end else
+        if length(pt) = 2 then
+        begin
+          // Going through
+          iPt1 := Engine.LonLatToScreen(pt[0]);
+          iPt2 := Engine.LonLatToScreen(pt[1]);
+          DrawingEngine.Line(iPt1.X, iPt1.Y, iPt2.X, iPt2.Y);
+        end else
+          ;  // no intersection;
       end;
+      pt1 := pt2;
+      isInside1 := isInside2;
     end;
   finally
     GPSItems.Unlock;
@@ -754,6 +783,7 @@ begin
       DrawingEngine.DrawBitmap(Pt.X - FPOIImage.Width div 2, Pt.Y - FPOIImage.Height, FPOIImage, true)
     else begin
       DrawingEngine.PenColor := ptColor;
+      DrawingEngine.PenWidth := 3;
       DrawingEngine.Line(Pt.X, Pt.Y - 5, Pt.X, Pt.Y + 5);
       DrawingEngine.Line(Pt.X - 5, Pt.Y, Pt.X + 5, Pt.Y);
       Pt.Y := Pt.Y + 5;

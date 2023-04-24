@@ -19,13 +19,13 @@
     <name>Yosemite Tour 1 - Trans Yosemite</name>
     <link href="http://www.gpsies.com/map.do?fileId=dmpqsohxkxiiamce" />
     <trkseg>
-      <trkpt lat="37.49188000" lon="-119.72060">
-        <ele>621.00000</ele>
-        <time>2010-01-01T00:00:00Z</time>
-      </trkpt>
-      <trkpt lat="37.95048000" lon="-119.113570">
+      <trkpt lat="38.01000" lon="-119.70">
         <ele>2085.0000</ele>
-        <time>2010-01-01T19:05:04Z</time>
+        <time>2010-01-01T19:09:04Z</time>
+      </trkpt>
+      <trkpt lat="37.97000" lon="-119.73">
+        <ele>2085.0000</ele>
+        <time>2010-01-01T19:11:04Z</time>
       </trkpt>
     </trkseg>
   </trk>

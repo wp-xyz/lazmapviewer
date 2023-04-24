@@ -118,6 +118,7 @@ type
         GetZStr: TGetValStr = nil): TMapProvider;
       procedure CancelCurrentDrawing;
       procedure ClearMapProviders;
+      function CrossesDateline: Boolean;
       procedure GetMapProviders(AList: TStrings);
       function LonLatToScreen(ALonLat: TRealPoint): TPoint;
       function LonLatToWorldScreen(ALonLat: TRealPoint): TPoint;
@@ -481,6 +482,17 @@ begin
   end;
 end;
 
+{ Returns true when the visible window crosses the date line, i.e. the longitudes
+  at the left are > 0, and those at the right are < 0. }
+function TMapViewerEngine.CrossesDateline: Boolean;
+var
+  visArea: TRealArea;
+begin
+  visArea.TopLeft := ScreenToLonLat(Point(0, 0));
+  visArea.BottomRight := ScreenToLonLat(Point(Width, Height));
+  Result := (visArea.TopLeft.Lon > 0) and (visArea.BottomRight.Lon < 0);
+end;
+
 procedure TMapViewerEngine.DblClick(Sender: TObject);
 var
   pt: TPoint;
@@ -631,16 +643,18 @@ begin
     else pixelLocation := DegreesToPixelsEPSG3857(AWin, ALonLat);
   end;
 
-  mapWidth := ZoomFactor(AWin.Zoom) * TILE_SIZE;
   Result.X := pixelLocation.x + AWin.X;
-  while (Result.X < 0) do
-    Result.X := Result.X + mapWidth;
-  while (Result.X > AWin.Width) do
-    Result.X := Result.X - mapWidth;
+  if CrossesDateLine then
+  begin
+    mapWidth := ZoomFactor(AWin.Zoom) * TILE_SIZE;
+    while (Result.X < 0) do
+      Result.X := Result.X + mapWidth;
+    while (Result.X > AWin.Width) do
+      Result.X := Result.X - mapWidth;
+  end;
   Result.Y := pixelLocation.y + AWin.Y;
 end;
 
-// review: coth: Should it use Int64?
 function TMapViewerEngine.DegreesToPixelsEPSG3857(const AWin: TMapWindow;
   ALonLat: TRealPoint): TPoint;
 const
@@ -716,17 +730,17 @@ end;
 function TMapViewerEngine.MapPixelsToDegrees(const AWin: TMapWindow;
   APoint: TPoint): TRealPoint;
 var
-  iMapWidth: Int64;
+  mapWidth: Int64;
   mPoint : TPoint;
 begin
-  iMapWidth := round(ZoomFactor(AWin.Zoom)) * TILE_SIZE;
+  mapWidth := round(ZoomFactor(AWin.Zoom)) * TILE_SIZE;
 
-  mPoint.X := (APoint.X - AWin.X) mod iMapWidth;
+  mPoint.X := (APoint.X - AWin.X) mod mapWidth;
   while mPoint.X < 0 do
-    mPoint.X := mPoint.X + iMapWidth;
-  while mPoint.X >= iMapWidth do
-    mPoint.X := mPoint.X - iMapWidth;
-  mPoint.Y := EnsureRange(APoint.Y - AWin.Y, 0, iMapWidth);
+    mPoint.X := mPoint.X + mapWidth;
+  while mPoint.X >= mapWidth do
+    mPoint.X := mPoint.X - mapWidth;
+  mPoint.Y := EnsureRange(APoint.Y - AWin.Y, 0, mapWidth);
 
   case aWin.MapProvider.ProjectionType of
     ptEPSG3857: Result := PixelsToDegreesEPSG3857(mPoint, AWin.Zoom);

@@ -14,6 +14,7 @@ type
     procedure Test_PointInArea;
     procedure Test_Union;
     procedure Test_Intersection;
+    procedure Test_IntersectionWithLine;
   end;
 
 implementation
@@ -23,7 +24,7 @@ uses
 
 function AreaToStr(Area: TRealArea): String;
 begin
-  Result := Format('L=%.6f T=%.6f R=%.6f B=%.6f', [
+  Result := Format('L=%g T=%g R=%g B=%g', [
     Area.TopLeft.Lon, Area.TopLeft.Lat, Area.BottomRight.Lon, Area.BottomRight.Lat
   ]);
 end;
@@ -211,9 +212,7 @@ begin
     true,                 // expected
     (actual = expected)   // actual
   );
-
 end;
-
 
 procedure TAreaTests.Test_Intersection;
 var
@@ -343,11 +342,173 @@ begin
     AreaToStr(expected),
     AreaToStr(actual)
   );
+
+  // Second area crossing date line, overlaps on the right side of dateline
+  inc(counter);
+  a.Init(-175, 30, -165, 0);
+  b.Init(160, 40, -170, 20);
+  intersects := a.Intersects(b);
+  AssertEquals(
+    'Area intersection detection test #' + IntToStr(counter) + ' mismatch',
+    true,
+    intersects
+  );
+  expected.Init(-170, 30, -165, 20);
+  actual := a.Intersection(b);
+  AssertEquals(
+    'Area intersection test #' + IntToStr(counter) + ' mismatch',
+    AreaToStr(expected),
+    AreaToStr(actual)
+  );
+
+  // Both areas crossing date line
+  inc(counter);
+  a.Init(175, 30, -165, 0);
+  b.Init(160, 40, -170, 20);
+  intersects := a.Intersects(b);
+  AssertEquals(
+    'Area intersection detection test #' + IntToStr(counter) + ' mismatch',
+    true,
+    intersects
+  );
+  expected.Init(175, 30, -170, 20);
+  actual := a.Intersection(b);
+  AssertEquals(
+    'Area intersection test #' + IntToStr(counter) + ' mismatch',
+    AreaToStr(expected),
+    AreaToStr(actual)
+  );
 end;
 
 
-initialization
+procedure TAreaTests.Test_IntersectionWithLine;
+var
+  counter: Integer;
+  area: TRealArea;     // Area to be intersected
+  A, B: TRealPoint;    // End points of line
+  P: TRealPointArray;  // IntersectionPoints found
+  P1, P2: TRealPoint;  // Expected intersection points (at most 2)
+begin
+  Area.Init(-10, 10, 10, -10);
 
+  // No intersection
+  counter := 1;
+  A.Init(-20, 30);
+  B.Init( 20, 30);
+  Area.IntersectionWithLine(A, B, P);
+  AssertEquals('Line/Area intersection count test #' + IntToStr(counter) + ' mismatch',
+    0,  // expected
+    Length(P)
+  );
+
+  // Line going out to east: 1 intersection
+  inc(counter);
+  A.Init(1, 1);
+  B.Init(20, 1);
+  P1.Init(10, 1);
+  Area.IntersectionWithLine(A, B, P);
+  AssertEquals('Line/Area intersection count test #' + IntToStr(counter) + ' mismatch',
+    1,  // expected
+    Length(P)
+  );
+  AssertEquals('Line/Area intersection point test #' + IntToStr(counter) + ' mismatch (longitude)',
+    P1.Lon,
+    P[0].Lon
+  );
+  AssertEquals('Line/Area intersection point test #' + IntToStr(counter) + ' mismatch (latitude)',
+    P1.Lat,
+    P[0].Lat
+  );
+
+  // Line going out to west: 1 intersection
+  inc(counter);
+  A.Init(1, 1);
+  B.Init(-21, -1);
+  P1.Init(-10, 0);
+  Area.IntersectionWithLine(A, B, P);
+  AssertEquals('Line/Area intersection count test #' + IntToStr(counter) + ' mismatch',
+    1,  // expected
+    Length(P)
+  );
+  AssertEquals('Line/Area intersection point test #' + IntToStr(counter) + ' mismatch (longitude)',
+    P1.Lon,
+    P[0].Lon
+  );
+  AssertEquals('Line/Area intersection point test #' + IntToStr(counter) + ' mismatch (latitude)',
+    P1.Lat,
+    P[0].Lat
+  );
+
+  // Line going out to north: 1 intersection
+  inc(counter);
+  A.Init(1, 1);
+  B.Init(-1, 19);
+  P1.Init(0, 10);
+  Area.IntersectionWithLine(A, B, P);
+  AssertEquals('Line/Area intersection count test #' + IntToStr(counter) + ' mismatch',
+    1,  // expected
+    Length(P)
+  );
+  AssertEquals('Line/Area intersection point test #' + IntToStr(counter) + ' mismatch (longitude)',
+    P1.Lon,
+    P[0].Lon
+  );
+  AssertEquals('Line/Area intersection point test #' + IntToStr(counter) + ' mismatch (latitude)',
+    P1.Lat,
+    P[0].Lat
+  );
+
+  // Line going out to south: 1 intersection
+  inc(counter);
+  A.Init(1, 1);
+  B.Init(-1, -21);
+  P1.Init(0, -10);
+  Area.IntersectionWithLine(A, B, P);
+  AssertEquals('Line/Area intersection count test #' + IntToStr(counter) + ' mismatch',
+    1,  // expected
+    Length(P)
+  );
+  AssertEquals('Line/Area intersection point test #' + IntToStr(counter) + ' mismatch (longitude)',
+    P1.Lon,
+    P[0].Lon
+  );
+  AssertEquals('Line/Area intersection point test #' + IntToStr(counter) + ' mismatch (latitude)',
+    P1.Lat,
+    P[0].Lat
+  );
+
+  // Line going through: 2 intersections
+  inc(counter);
+  A.Init(11, 0);
+  B.Init(-11, 0);
+  P1.Init(10, 0);
+  P2.Init(-10, 0);
+  Area.IntersectionWithLine(A, B, P);
+  AssertEquals('Line/Area intersection count test #' + IntToStr(counter) + ' mismatch',
+    2,  // expected
+    Length(P)
+  );
+  AssertEquals('Line/Area intersection point test #' + IntToStr(counter) + ' mismatch (longitude #1)',
+    P1.Lon,
+    P[0].Lon
+  );
+  AssertEquals('Line/Area intersection point test #' + IntToStr(counter) + ' mismatch (latitude #1)',
+    P1.Lat,
+    P[0].Lat
+  );
+  AssertEquals('Line/Area intersection point test #' + IntToStr(counter) + ' mismatch (longitude #2)',
+    P2.Lon,
+    P[1].Lon
+  );
+  AssertEquals('Line/Area intersection point test #' + IntToStr(counter) + ' mismatch (latitude #2)',
+    P2.Lat,
+    P[1].Lat
+  );
+
+end;
+
+initialization
   RegisterTest(TAreaTests);
+
 end.
 

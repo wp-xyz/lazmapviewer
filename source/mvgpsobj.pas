@@ -185,7 +185,7 @@ implementation
 
 uses
   Math, mvExtraData;
-
+                  {
 function InLongitudeRange(L, L1, L2: Extended): boolean;
 begin
   if L1 <= L2 then
@@ -193,15 +193,21 @@ begin
   else
     // Crossing the date-line
     Result := InRange(L, L1, 180) or InRange(L, -180, L2);
-end;
+end;               }
 
 function HasIntersectArea(const Area1: TRealArea; const Area2: TRealArea): boolean;
 begin
+  Result := Area1.Intersects(Area2);
+  {;
   Result := PtInsideArea(Area1.TopLeft, Area2) or PtInsideArea(Area1.BottomRight, Area2) or
             PtInsideArea(Area2.TopLeft, Area1) or PtInsideArea(Area2.BottomRight, Area1);
+            }
 end;
 
 function IntersectArea(const Area1: TRealArea; const Area2: TRealArea): TRealArea;
+begin
+  Result := Area1.Intersection(Area2);
+  {
 var
   A1, A2: TRealArea;
 begin
@@ -221,6 +227,7 @@ begin
 
   if Result.BottomRight.Lat < A2.BottomRight.Lat then
     Result.BottomRight.Lat := A2.BottomRight.Lat;
+    }
 end;
 
 function PtInsideArea(const aPoint: TRealPoint; const Area: TRealArea): boolean;
@@ -234,6 +241,9 @@ begin
 end;
 
 function AreaInsideArea(const AreaIn: TRealArea; const AreaOut: TRealArea): boolean;
+begin
+  Result := AreaIn.Intersection(AreaOut) = AreaIn;
+  {
 var
   inner, outer: TRealArea;
 begin
@@ -243,6 +253,7 @@ begin
             (inner.BottomRight.Lon <= outer.BottomRight.Lon) and
             (outer.TopLeft.Lat >= inner.TopLeft.Lat) and
             (outer.BottomRight.Lat <= inner.BottomRight.Lat);
+            }
 end;
 
 procedure ExtendArea(var AreaToExtend: TRealArea; const Area: TRealArea);
