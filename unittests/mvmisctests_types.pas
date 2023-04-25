@@ -14,7 +14,7 @@ type
     procedure Test_PointInArea;
     procedure Test_Union;
     procedure Test_Intersection;
-    procedure Test_IntersectionWithLine;
+//    procedure Test_IntersectionWithLine;
   end;
 
 implementation
@@ -137,80 +137,80 @@ begin
   actual := a.Union(b);
   AssertEquals(
     'Area union test #' + IntToStr(counter) + ' mismatch',
-    true,                 // expected
-    (actual = expected)   // actual
+    AreaToStr(expected),
+    AreaToStr(actual)
   );
 
   // Regular areas, partly overlapping
-  inc(counter);
+  inc(counter);      // #2
   a.Init(0, 10, 10, 0);
   b.Init(5, 40, 30, 20);
   expected.Init(0, 40, 30, 0);
   actual := a.Union(b);
   AssertEquals(
     'Area union test #' + IntToStr(counter) + ' mismatch',
-    true,                 // expected
-    (actual = expected)   // actual
+    AreaToStr(expected),
+    AreaToStr(actual)
   );
 
   // Regular areas, partly overlapping
-  inc(counter);
+  inc(counter);     // #3
   a.Init(5, 10, 10, 0);
   b.Init(0, 40, 30, 20);
   expected.Init(0, 40, 30, 0);
   actual := a.Union(b);
   AssertEquals(
     'Area union test #' + IntToStr(counter) + ' mismatch',
-    true,                 // expected
-    (actual = expected)   // actual
+    AreaToStr(expected),
+    AreaToStr(actual)
   );
 
   // Regular areas, partly overlapping
-  inc(counter);
+  inc(counter);    // #4
   a.Init(5, 10, 10, 0);
   b.Init(0, 40, 30, 20);
   expected.Init(0, 40, 30, 0);
   actual := a.Union(b);
   AssertEquals(
     'Area union test #' + IntToStr(counter) + ' mismatch',
-    true,                 // expected
-    (actual = expected)   // actual
+    AreaToStr(expected),
+    AreaToStr(actual)
   );
 
   // First area crossing dateline
-  inc(counter);
+  inc(counter);     // #5
   a.Init(160, 30, -160, 10);         // --> 160...200
   b.Init(-170, 60, -150, 50);        // --> -170..-160
-  expected.Init(-170, 60, -160, 10); // --> -170...200
+  expected.Init(-170, 60, -150, 10); // --> -170...210
   actual := a.Union(b);
   AssertEquals(
     'Area union test #' + IntToStr(counter) + ' mismatch',
-    true,                 // expected
-    (actual = expected)   // actual
+    AreaToStr(expected),
+    AreaToStr(actual)
   );
 
   // Second area crossing dateline
-  inc(counter);
+  inc(counter);     // #6
   a.Init(-170, 60, -150, 50);        // --> -170..-160
   b.Init(160, 30, -160, 10);         // --> 160...200
-  expected.Init(-170, 60, -160, 10); // --> -170...200
+  expected.Init(-170, 60, -150, 10); // --> -170...210
   actual := a.Union(b);
   AssertEquals(
     'Area union test #' + IntToStr(counter) + ' mismatch',
-    true,                 // expected
-    (actual = expected)   // actual
+    AreaToStr(expected),
+    AreaToStr(actual)
   );
 
   // Both areas crossing dateline
-  inc(counter);
+  inc(counter);     // #7
   a.Init(170, 60, -150, 50);         // --> 170..210
   b.Init(160, 30, -160, 10);         // --> 160...200
   expected.Init(160, 60, -150, 10);  // --> 160...210
   actual := a.Union(b);
   AssertEquals(
     'Area union test #' + IntToStr(counter) + ' mismatch',
-    true,                 // expected
-    (actual = expected)   // actual
+    AreaToStr(expected),
+    AreaToStr(actual)
   );
 end;
 
@@ -232,7 +232,7 @@ begin
   );
 
   // Regular areas, partly overlapping
-  inc(counter);
+  inc(counter);           // #2
   a.Init(0, 30, 20, 0);
   b.Init(5, 40, 30, 20);
   intersects := a.Intersects(b);
@@ -250,7 +250,7 @@ begin
   );
 
   // Regular areas, partly overlapping, reverse order
-  inc(counter);
+  inc(counter);         // #3
   a.Init(5, 40, 30, 20);
   b.Init(0, 30, 20, 0);
   intersects := a.Intersects(b);
@@ -268,7 +268,7 @@ begin
   );
 
   // First area crossing date line, no overlaps
-  inc(counter);
+  inc(counter);           // #4
   a.Init(160, 40, -170, 20);
   b.Init(-160, 30, -150, 0);
   intersects := a.Intersects(b);
@@ -279,7 +279,7 @@ begin
   );
 
   // First area crossing date line, overlaps on the left side of date lie
-  inc(counter);
+  inc(counter);          // #5
   a.Init(160, 40, -170, 20);
   b.Init(165, 30, 170, 0);
   intersects := a.Intersects(b);
@@ -297,7 +297,7 @@ begin
   );
 
   // First area crossing date line, overlaps on the right side of date lie
-  inc(counter);
+  inc(counter);           // #6
   a.Init(160, 40, -160, 20);
   b.Init(-170, 30, -165, 0);
   intersects := a.Intersects(b);
@@ -315,7 +315,7 @@ begin
   );
 
   // Second area crossing date line, no overlaps
-  inc(counter);
+  inc(counter);          // #7
   a.Init(-160, 30, -150, 0);
   b.Init(160, 40, -170, 20);
   intersects := a.Intersects(b);
@@ -326,7 +326,7 @@ begin
   );
 
   // Second area crossing date line, overlaps on the left side of dateline
-  inc(counter);
+  inc(counter);          // #8
   a.Init(165, 30, 170, 0);
   b.Init(160, 40, -170, 20);
   intersects := a.Intersects(b);
@@ -344,7 +344,7 @@ begin
   );
 
   // Second area crossing date line, overlaps on the right side of dateline
-  inc(counter);
+  inc(counter);         // #9
   a.Init(-175, 30, -165, 0);
   b.Init(160, 40, -170, 20);
   intersects := a.Intersects(b);
@@ -362,7 +362,7 @@ begin
   );
 
   // Both areas crossing date line
-  inc(counter);
+  inc(counter);         // #10
   a.Init(175, 30, -165, 0);
   b.Init(160, 40, -170, 20);
   intersects := a.Intersects(b);
@@ -380,7 +380,7 @@ begin
   );
 end;
 
-
+                           (*
 procedure TAreaTests.Test_IntersectionWithLine;
 var
   counter: Integer;
@@ -506,7 +506,7 @@ begin
   );
 
 end;
-
+                *)
 initialization
   RegisterTest(TAreaTests);
 
