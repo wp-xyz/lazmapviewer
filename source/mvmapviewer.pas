@@ -56,10 +56,11 @@ Type
       procedure DrawObjects(const {%H-}TileId: TTileId; aLeft, aTop, aRight,aBottom: integer);
       procedure DrawPointOfInterest(const {%H-}Area: TRealArea; APt: TGPSPointOfInterest);
       procedure DrawPt(const {%H-}Area: TRealArea; APt: TGPSPoint);
-      procedure DrawTrack(const {%H-}Area: TRealArea; trk: TGPSTrack);
+      procedure DrawTrack(const Area: TRealArea; trk: TGPSTrack);
       function GetCacheOnDisk: boolean;
       function GetCachePath: String;
       function GetCenter: TRealPoint;
+      function GetCyclic: Boolean;
       function GetDownloadEngine: TMvCustomDownloadEngine;
       function GetDrawingEngine: TMvCustomDrawingEngine;
       function GetMapProvider: String;
@@ -75,6 +76,7 @@ Type
       procedure SetCacheOnDisk(AValue: boolean);
       procedure SetCachePath(AValue: String);
       procedure SetCenter(AValue: TRealPoint);
+      procedure SetCyclic(AValue: Boolean);
       procedure SetDebugTiles(AValue: Boolean);
       procedure SetDefaultTrackColor(AValue: TColor);
       procedure SetDefaultTrackWidth(AValue: Integer);
@@ -140,6 +142,7 @@ Type
       property Align;
       property CacheOnDisk: boolean read GetCacheOnDisk write SetCacheOnDisk default true;
       property CachePath: String read GetCachePath write SetCachePath stored IsCachePathStored;
+      property Cyclic: Boolean read GetCyclic write SetCyclic default false;
       property DebugTiles: Boolean read FDebugTiles write SetDebugTiles default false;
       property DefaultTrackColor: TColor read FDefaultTrackColor write SetDefaultTrackColor default clRed;
       property DefaultTrackWidth: Integer read FDefaultTrackWidth write SetDefaultTrackWidth default 1;
@@ -172,7 +175,7 @@ Type
 
 implementation
 
-uses                syncobjs,
+uses
   GraphType, Types,
   mvJobQueue, mvExtraData, mvDLEFpc,
   {$IFDEF MSWINDOWS}
@@ -319,6 +322,11 @@ begin
   Result := Engine.Center;
 end;
 
+function TMapView.GetCyclic: Boolean;
+begin
+  Result := Engine.Cyclic;
+end;
+
 function TMapView.GetDownloadEngine: TMvCustomDownloadEngine;
 begin
   if FDownloadEngine = nil then
@@ -394,6 +402,12 @@ end;
 procedure TMapView.SetCenter(AValue: TRealPoint);
 begin
   Engine.Center := AValue;
+end;
+
+procedure TMapView.SetCyclic(AValue: Boolean);
+begin
+  Engine.Cyclic := AValue;
+  Engine.Redraw;
 end;
 
 procedure TMapView.SetDebugTiles(AValue: Boolean);
@@ -697,6 +711,7 @@ begin
       if (APt.ExtraData <> nil) and APt.ExtraData.InheritsFrom(TDrawingExtraData) then
         ptColor := TDrawingExtraData(APt.ExtraData).Color;
       DrawingEngine.PenColor := ptColor;
+      DrawingEngine.PenWidth := 3;
       DrawingEngine.Line(pt.X, pt.Y - 5, pt.X, pt.Y + 5);
       DrawingEngine.Line(pt.X - 5, pt.Y, pt.X + 5, pt.Y);
       pt.Y := pt.Y + 5;
@@ -712,7 +727,7 @@ begin
       s := ' ' + s + ' ';
     end;
     extent := DrawingEngine.TextExtent(s);
-    DrawingEngine.Textout(pt.X - extent.CX div 2, pt.Y + 5, s);
+    DrawingEngine.TextOut(pt.X - extent.CX div 2, pt.Y + 5, s);
   finally
     GPSItems.Unlock;
   end;
@@ -785,8 +800,6 @@ var
 begin
   Area.TopLeft := Engine.ScreenToLonLat(Point(aLeft, aTop));
   Area.BottomRight := Engine.ScreenToLonLat(Point(aRight, aBottom));
-  //Area.Normalize;
-
   if GPSItems.Count > 0 then
   begin
     lst := GPSItems.GetObjectsInArea(Area);
@@ -1010,12 +1023,14 @@ var
 begin
   Result.TopLeft := Engine.ScreenToLonLat(Point(0, 0));
   Result.BottomRight := Engine.ScreenToLonLat(Point(Width, Height));
-
-  mapWidth := ZoomFactor(Engine.Zoom) * TILE_SIZE;
-  if Width >= mapWidth then
+  if Cyclic then
   begin
-    Result.TopLeft.Lon := -180;
-    Result.BottomRight.Lon := 180;
+    mapWidth := ZoomFactor(Engine.Zoom) * TILE_SIZE;
+    if Width >= mapWidth then
+    begin
+      Result.TopLeft.Lon := -180;
+      Result.BottomRight.Lon := 180;
+    end;
   end;
 end;
 

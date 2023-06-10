@@ -184,98 +184,31 @@ function GetAreaOf(objs: TGPSObjList): TRealArea;
 implementation
 
 uses
-  Math, mvExtraData;
-                  {
-function InLongitudeRange(L, L1, L2: Extended): boolean;
-begin
-  if L1 <= L2 then
-    Result := InRange(L, L1, L2)
-  else
-    // Crossing the date-line
-    Result := InRange(L, L1, 180) or InRange(L, -180, L2);
-end;               }
+  mvExtraData;
 
-function HasIntersectArea(const Area1: TRealArea; const Area2: TRealArea): boolean;
+function hasIntersectArea(const Area1: TRealArea; const Area2: TRealArea): boolean;
 begin
   Result := Area1.Intersects(Area2);
-  {;
-  Result := PtInsideArea(Area1.TopLeft, Area2) or PtInsideArea(Area1.BottomRight, Area2) or
-            PtInsideArea(Area2.TopLeft, Area1) or PtInsideArea(Area2.BottomRight, Area1);
-            }
 end;
 
 function IntersectArea(const Area1: TRealArea; const Area2: TRealArea): TRealArea;
 begin
   Result := Area1.Intersection(Area2);
-  {
-var
-  A1, A2: TRealArea;
-begin
-  A1 := Area1.Normalize;
-  A2 := Area2.Normalize;
-
-  Result := A1;
-
-  if Result.TopLeft.Lon < A2.TopLeft.Lon then
-    Result.TopLeft.Lon := A2.TopLeft.Lon;
-
-  if Result.TopLeft.Lat > A2.TopLeft.Lat then
-    Result.TopLeft.Lat := A2.TopLeft.Lat;
-
-  if Result.BottomRight.Lon > A2.BottomRight.Lon then
-    Result.BottomRight.Lon := A2.BottomRight.Lon;
-
-  if Result.BottomRight.Lat < A2.BottomRight.Lat then
-    Result.BottomRight.Lat := A2.BottomRight.Lat;
-    }
 end;
 
 function PtInsideArea(const aPoint: TRealPoint; const Area: TRealArea): boolean;
 begin
   Result := Area.ContainsPoint(aPoint);
-  {
-  Result :=
-    InRange(APoint.Lat, Area.BottomRight.Lat, Area.TopLeft.Lat) and
-    InLongitudeRange(APoint.Lon, Area.TopLeft.Lon, Area.BottomRight.Lon)
-    }
 end;
 
 function AreaInsideArea(const AreaIn: TRealArea; const AreaOut: TRealArea): boolean;
 begin
-  Result := AreaIn.Intersection(AreaOut) = AreaIn;
-  {
-var
-  inner, outer: TRealArea;
-begin
-  inner := AreaIn.Normalize;
-  outer := AreaOut.Normalize;
-  Result := (inner.TopLeft.Lon >= outer.TopLeft.Lon) and
-            (inner.BottomRight.Lon <= outer.BottomRight.Lon) and
-            (outer.TopLeft.Lat >= inner.TopLeft.Lat) and
-            (outer.BottomRight.Lat <= inner.BottomRight.Lat);
-            }
+  Result := AreaIn.Equal(AreaIn.Intersection(AreaOut));
 end;
 
 procedure ExtendArea(var AreaToExtend: TRealArea; const Area: TRealArea);
 begin
   AreaToExtend := AreaToExtend.Union(Area);
-  {
-var
-  A: TRealArea;
-begin
-  AreaToExtend := AreaToExtend.Normalize;
-  A := Area.Normalize;
-
-  if AreaToExtend.TopLeft.Lon > A.TopLeft.Lon then
-     AreaToExtend.TopLeft.Lon := A.TopLeft.Lon;
-  if AreaToExtend.BottomRight.Lon < A.BottomRight.Lon then
-     AreaToExtend.BottomRight.Lon := A.BottomRight.Lon;
-
-  if AreaToExtend.TopLeft.Lat < A.TopLeft.Lat then
-     AreaToExtend.TopLeft.Lat := A.TopLeft.Lat;
-  if AreaToExtend.BottomRight.Lat > A.BottomRight.Lat then
-     AreaToExtend.BottomRight.Lat := A.BottomRight.Lat;
-     }
 end;
 
 function GetAreaOf(objs: TGPSObjList): TRealArea;

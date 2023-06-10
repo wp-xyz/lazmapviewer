@@ -10,9 +10,13 @@
         <OtherUnitFiles Value="source"/>
         <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
       </SearchPaths>
+      <Other>
+        <CompilerMessages>
+          <IgnoredMessages idx6058="True"/>
+        </CompilerMessages>
+      </Other>
     </CompilerOptions>
-    <Description Value="Component for viewing maps (Google, OpenStreetMap, etc). 
-This is a fork of MapViewer by ti_dic (https://sourceforge.net/p/roadbook/code/ci/master/tree/mapviewer/) which itself is based on the MapViewer by Maciej Kaczkowski (https://github.com/maciejkaczkowski/mapviewer)."/>
+    <Description Value="Component for viewing maps (Google, OpenStreetMap, etc).   This is a fork of MapViewer by ti_dic (https://sourceforge.net/p/roadbook/code/ci/master/tree/mapviewer/) which itself is based on the MapViewer by Maciej Kaczkowski (https://github.com/maciejkaczkowski/mapviewer)."/>
     <License Value="Modified LGPL with linking exception, like FreePascal RTL/FCL and Lazarus LCL"/>
     <Version Minor="2" Release="5"/>
     <Files Count="19">
@@ -91,7 +95,7 @@ This is a fork of MapViewer by ti_dic (https://sourceforge.net/p/roadbook/code/c
       </Item18>
       <Item19>
         <Filename Value="source/mvdlewin.pas"/>
-        <UnitName Value="mvdlewin"/>
+        <UnitName Value="mvDLEWin"/>
       </Item19>
     </Files>
     <CompatibilityMode Value="True"/>
@@ -109,5 +113,6 @@ This is a fork of MapViewer by ti_dic (https://sourceforge.net/p/roadbook/code/c
     <CustomOptions Items="ExternHelp" Version="2">
       <_ExternHelp Items="Count"/>
     </CustomOptions>
+    <ExamplesDirectory Value="examples\"/>
   </Package>
 </CONFIG>

@@ -37,14 +37,12 @@
         <IsPartOfProject Value="True"/>
       </Unit>
       <Unit>
-        <Filename Value="mvmisctests_engine.pas"/>
+        <Filename Value="mvtests_types.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="mvMiscTests_Engine"/>
       </Unit>
       <Unit>
-        <Filename Value="mvmisctests_types.pas"/>
+        <Filename Value="mvtests_engine.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="mvMiscTests_Types"/>
       </Unit>
     </Units>
   </ProjectOptions>

@@ -3,7 +3,8 @@ program mapviewer_tests;
 {$mode objfpc}{$H+}
 
 uses
-  Interfaces, Forms, GuiTestRunner, mvMiscTests_Engine, mvmisctests_types;
+  Interfaces, Forms, GuiTestRunner,
+  mvtests_engine, mvtests_types;
 
 {$R *.res}
 

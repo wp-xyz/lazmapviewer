@@ -1,0 +1,5 @@
+{ "MapViewer_FullDemo_with_AddOns" : {
+   "Category" : "ThirdParty",
+   "Keywords" : ["TMapView", "geography", "earth", "maps", "GPS", "longitude", "latitude", "gpx", "bgrabitmap", "rgbgraphics", "synapse"],
+   "Description" : "Similar to the other \"fulldemo\" project, this application gives an overview of all features available in the LazMapViewer package: \n- zoomable/draggable view of the maps\n- selection of map provider\n- searching of geo locations\n- adding markers\n- displaying gpx track files\n\nAdditionally, the project allows also to\n- select a drawing engine (internal, rgbagraphics, bgrabitmap)\n- select a download engine (internal, synapse)\n\nRequires installation of the lazmapviewer_rgbgraphics, lazmapviewer_bgra and lazmapviewer_synapse packages which, themselves, depend on other packages (lazmapviewer_rgbgraphics --> lazrgbgraphics; lazmapviewer_bgra --> bgrabitmappack; lazmapviewer_synapse --> laz_synapse)."}
+}

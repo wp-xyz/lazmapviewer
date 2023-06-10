@@ -1,0 +1,5 @@
+{ "MapViewer_FullDemo" : {
+   "Category" : "ThirdParty",
+   "Keywords" : ["TMapView", "geography", "earth", "maps", "GPS", "longitude", "latitude", "gpx"],
+   "Description" : "This project gives an overview of all features available in the LazMapViewer package: \n- zoomable/draggable view of the maps\n- selection of map provider\n- searching of geo locations\n- adding markers\n- displaying gpx track files"}
+}

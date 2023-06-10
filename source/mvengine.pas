@@ -59,6 +59,7 @@ type
       DragObj : TDragObj;
       Cache : TPictureCache;
       FActive: boolean;
+      FCyclic: Boolean;
       FDownloadEngine: TMvCustomDownloadEngine;
       FDrawTitleInGuiThread: boolean;
       FOnCenterMove: TNotifyEvent;
@@ -82,7 +83,8 @@ type
       procedure SetActive(AValue: boolean);
       procedure SetCacheOnDisk(AValue: Boolean);
       procedure SetCachePath(AValue: String);
-      procedure SetCenter(aCenter: TRealPoint);
+      procedure SetCenter(ACenter: TRealPoint);
+      procedure SetCyclic(AValue: Boolean);
       procedure SetDownloadEngine(AValue: TMvCustomDownloadEngine);
       procedure SetHeight(AValue: integer);
       procedure SetMapProvider(AValue: String);
@@ -147,6 +149,7 @@ type
       property Active: Boolean read FActive write SetActive default false;
       property CacheOnDisk: Boolean read GetCacheOnDisk write SetCacheOnDisk;
       property CachePath: String read GetCachePath write SetCachePath;
+      property Cyclic: Boolean read FCyclic write SetCyclic default false;
       property DownloadEngine: TMvCustomDownloadEngine
         read FDownloadEngine write SetDownloadEngine;
       property DrawTitleInGuiThread: boolean
@@ -483,14 +486,21 @@ begin
 end;
 
 { Returns true when the visible window crosses the date line, i.e. the longitudes
-  at the left are > 0, and those at the right are < 0. }
+  at the left of the window are > 0, and those at the right are < 0. }
 function TMapViewerEngine.CrossesDateline: Boolean;
 var
   visArea: TRealArea;
+  mapWidth: Int64;
 begin
-  visArea.TopLeft := ScreenToLonLat(Point(0, 0));
-  visArea.BottomRight := ScreenToLonLat(Point(Width, Height));
-  Result := (visArea.TopLeft.Lon > 0) and (visArea.BottomRight.Lon < 0);
+  // Catch the case, that the screen is wider than the whole world
+  mapWidth := ZoomFactor(MapWin.Zoom) * TILE_SIZE;
+  Result := (MapWin.Width > mapWidth);
+  if not Result then
+  begin
+    visArea.TopLeft := ScreenToLonLat(Point(0, 0));
+    visArea.BottomRight := ScreenToLonLat(Point(Width, Height));
+    Result := (visArea.TopLeft.Lon > 0) and (visArea.BottomRight.Lon < 0);
+  end;
 end;
 
 procedure TMapViewerEngine.DblClick(Sender: TObject);
@@ -642,9 +652,8 @@ begin
     ptEPSG3857: pixelLocation := DegreesToPixelsEPSG3857(AWin, ALonLat);
     else pixelLocation := DegreesToPixelsEPSG3857(AWin, ALonLat);
   end;
-
   Result.X := pixelLocation.x + AWin.X;
-  if CrossesDateLine then
+  if FCyclic and CrossesDateline then
   begin
     mapWidth := ZoomFactor(AWin.Zoom) * TILE_SIZE;
     while (Result.X < 0) do
@@ -655,6 +664,7 @@ begin
   Result.Y := pixelLocation.y + AWin.Y;
 end;
 
+// review: coth: Should it use Int64?
 function TMapViewerEngine.DegreesToPixelsEPSG3857(const AWin: TMapWindow;
   ALonLat: TRealPoint): TPoint;
 const
@@ -735,17 +745,21 @@ var
 begin
   mapWidth := round(ZoomFactor(AWin.Zoom)) * TILE_SIZE;
 
-  mPoint.X := (APoint.X - AWin.X) mod mapWidth;
-  while mPoint.X < 0 do
-    mPoint.X := mPoint.X + mapWidth;
-  while mPoint.X >= mapWidth do
-    mPoint.X := mPoint.X - mapWidth;
+  if FCyclic then
+  begin
+    mPoint.X := (APoint.X - AWin.X) mod mapWidth;
+    while mPoint.X < 0 do
+      mPoint.X := mPoint.X + mapWidth;
+    while mPoint.X >= mapWidth do
+      mPoint.X := mPoint.X - mapWidth;
+  end else
+    mPoint.X := EnsureRange(APoint.X - AWin.X, 0, mapWidth);
   mPoint.Y := EnsureRange(APoint.Y - AWin.Y, 0, mapWidth);
 
   case aWin.MapProvider.ProjectionType of
     ptEPSG3857: Result := PixelsToDegreesEPSG3857(mPoint, AWin.Zoom);
     ptEPSG3395: Result := PixelsToDegreesEPSG3395(mPoint, AWin.Zoom);
-    else Result := PixelsToDegreesEPSG3857(mPoint, AWin.Zoom);
+    else        Result := PixelsToDegreesEPSG3857(mPoint, AWin.Zoom);
   end;
 end;
 
@@ -1014,7 +1028,7 @@ begin
   Redraw(MapWin);
 end;
 
-procedure TMapViewerEngine.Redraw(const aWin: TmapWindow);
+procedure TMapViewerEngine.Redraw(const AWin: TmapWindow);
 var
   TilesVis: TArea;
   x, y : Integer; //int64;
@@ -1025,25 +1039,28 @@ begin
   if not(Active) then
     Exit;
   Queue.CancelAllJob(self);
-  TilesVis := CalculateVisibleTiles(aWin);
-  numTiles := 1 shl aWin.Zoom;
+  TilesVis := CalculateVisibleTiles(AWin);
   SetLength(Tiles, (TilesVis.Bottom - TilesVis.Top + 1) * (TilesVis.Right - TilesVis.Left + 1));
   iTile := Low(Tiles);
+  numTiles := 1 shl AWin.Zoom;
   for y := TilesVis.Top to TilesVis.Bottom do
     for X := TilesVis.Left to TilesVis.Right do
     begin
-      //Tiles[iTile].X := X;
-      Tiles[iTile].X := X mod numTiles;
-      if Tiles[iTile].X < 0 then
-        Tiles[iTile].X := Tiles[iTile].X + numTiles;
+      if FCyclic then
+      begin
+        Tiles[iTile].X := X mod numTiles;
+        if Tiles[iTile].X < 0 then
+          Tiles[iTile].X := Tiles[iTile].X + numTiles;
+      end else
+        Tiles[iTile].X := X;
       Tiles[iTile].Y := Y;
-      Tiles[iTile].Z := aWin.Zoom;
-      if IsValidTile(aWin, Tiles[iTile]) then
-        iTile += 1;
+      Tiles[iTile].Z := AWin.Zoom;
+      if IsValidTile(AWin, Tiles[iTile]) then
+        inc(iTile);
     end;
   SetLength(Tiles, iTile);
   if Length(Tiles) > 0 then
-    Queue.AddJob(TLaunchDownloadJob.Create(self, Tiles, aWin), self);
+    Queue.AddJob(TLaunchDownloadJob.Create(self, Tiles, AWin), self);
 end;
 
 
@@ -1088,7 +1105,14 @@ begin
 
   // Google
   AddMapProvider('Google Maps', ptEPSG3857, 'http://mt%serv%.google.com/vt/lyrs=m@145&v=w2.104&x=%x%&y=%y%&z=%z%', 0, 19, 4, nil);
-  AddMapProvider('Google Satellite', ptEPSG3857, 'http://khm%serv%.google.com/kh/v=863?x=%x%&y=%y%&z=%z%', 0, 19, 4, nil);
+  AddMapProvider('Google Satellite', ptEPSG3857, 'http://mt%serv%.google.com/vt/lyrs=y&hl=en&x=%x%&y=%y%&z=%z%' , 0, 19, 4, nil);
+  // not working any more (June 2023), replaced by above:
+  //AddMapProvider('Google Satellite', ptEPSG3857, 'http://khm%serv%.google.com/kh/v=863?x=%x%&y=%y%&z=%z%', 0, 19, 4, nil);
+  // Additional Google providers, submitted by "kangozidev" (https://github.com/wp-xyz/lazmapviewer/issues/1#issuecomment-1585534499)
+  AddMapProvider('Google Terrain', ptEPSG3857, 'http://mt%serv%.google.com/vt/lyrs=p&hl=en&x=%x%&y=%y%&z=%z%' , 0, 19, 4, nil);
+  AddMapProvider('Google Satellite Only', ptEPSG3857, 'http://mt%serv%.google.com/vt/lyrs=s&hl=en&x=%x%&y=%y%&z=%z%' , 0, 19, 4, nil);
+  AddMapProvider('Google Altered Roadmap', ptEPSG3857, 'http://mt%serv%.google.com/vt/lyrs=r&hl=en&x=%x%&y=%y%&z=%z%' , 0, 19, 4, nil);
+  AddMapProvider('Google Roadmap', ptEPSG3857, 'http://mt%serv%.google.com/vt/lyrs=m&hl=en&x=%x%&y=%y%&z=%z%' , 0, 19, 4, nil);
 
   // Yandex
   AddMapProvider('Yandex.Maps', ptEPSG3395, 'https://core-renderer-tiles.maps.yandex.net/tiles?l=map&x=%x%&y=%y%&z=%z%&scale=1&lang=ru_RU', 0, 19, 4, nil, nil, nil, nil);
@@ -1183,6 +1207,14 @@ begin
   end;
 end;
 
+procedure TMapViewerEngine.SetCyclic(AValue: Boolean);
+begin
+  if FCyclic = AValue then exit;
+  FCyclic := AValue;
+  if CrossesDateLine then
+    Redraw;
+end;
+
 procedure TMapViewerEngine.SetDownloadEngine(AValue: TMvCustomDownloadEngine);
 begin
   if FDownloadEngine = AValue then Exit;
@@ -1271,35 +1303,39 @@ var
   EnvTile: TEnvTile;
   img: TLazIntfImage;
   X, Y: integer;
-  worldWidth: Integer;
-  numTiles: Integer;
-  baseX: Integer;
+  worldWidth : Integer;
+  numTiles : Integer;
+  baseX : Integer;
 begin
   EnvTile := TEnvTile(Data);
   try
     if IsCurrentWin(EnvTile.Win)then
     begin
        Cache.GetFromCache(EnvTile.Win.MapProvider, EnvTile.Tile, img);
-
-       Y := EnvTile.Win.Y + EnvTile.Tile.Y * TILE_SIZE;     // begin of Y
-       baseX := EnvTile.Win.X + EnvTile.Tile.X * TILE_SIZE; // begin of X
-       numTiles := 1 shl EnvTile.Win.Zoom;
-       worldWidth := numTiles * TILE_SIZE;
-
-       // From the center to the left (western) hemisphere
-       X := baseX;
-       while (X+TILE_SIZE >= 0) do
+       Y := EnvTile.Win.Y + EnvTile.Tile.Y * TILE_SIZE; // begin of Y
+       if Cyclic then
        begin
-         DrawTile(EnvTile.Tile, X, Y, img);
-         X := X - worldWidth;
-       end;
-
-       // From the center to the right (eastern) hemisphere
-       X := baseX + worldWidth;
-       while ((X-TILE_SIZE) <= EnvTile.Win.Width) do
+         baseX := EnvTile.Win.X + EnvTile.Tile.X * TILE_SIZE; // begin of X
+         numTiles := 1 shl EnvTile.Win.Zoom;
+         worldWidth := numTiles * TILE_SIZE;
+         // From the center to the left (western) hemisphere
+         X := baseX;
+         while (X+TILE_SIZE >= 0) do
+         begin
+           DrawTile(EnvTile.Tile, X, Y, img);
+           X := X - worldWidth;
+         end;
+         // From the center to the right (eastern) hemisphere
+         X := baseX + worldWidth;
+         while ((X-TILE_SIZE) <= EnvTile.Win.Width) do
+         begin
+           DrawTile(EnvTile.Tile, X, Y, img);
+           X := X + worldWidth;
+         end;
+       end else
        begin
+         X := EnvTile.Win.X + EnvTile.Tile.X * TILE_SIZE; // begin of X
          DrawTile(EnvTile.Tile, X, Y, img);
-         X := X + worldWidth;
        end;
     end;
   finally

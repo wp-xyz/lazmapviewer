@@ -35,6 +35,7 @@ type
     CbShowPOIImage: TCheckBox;
     cbPOITextBgColor: TColorBox;
     CbZoomToCursor: TCheckBox;
+    CbCyclic: TCheckBox;
     FontDialog: TFontDialog;
     GbCenterCoords: TGroupBox;
     GbScreenSize: TGroupBox;
@@ -87,6 +88,7 @@ type
     procedure CbUseThreadsChange(Sender: TObject);
     procedure CbDistanceUnitsChange(Sender: TObject);
     procedure CbZoomToCursorChange(Sender: TObject);
+    procedure CbCyclicChange(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure FormShow(Sender: TObject);
@@ -373,6 +375,11 @@ begin
   MapView.ZoomToCursor := CbZoomToCursor.Checked;
 end;
 
+procedure TMainForm.CbCyclicChange(Sender: TObject);
+begin
+  MapView.Cyclic := CbCyclic.Checked;
+end;
+
 procedure TMainForm.ClearFoundLocations;
 var
   i: Integer;
@@ -386,16 +393,27 @@ begin
 end;
 
 procedure TMainForm.FormCreate(Sender: TObject);
+var
+  fn: String;
 begin
-//  FMapMarker := CreateMapMarker(32, clRed, clBlack);
-  POIImage := TPortableNetworkGraphic.Create;
-  POIImage.PixelFormat := pf32bit;
-  POIImage.LoadFromFile('mapmarker.png');
+  cInputQueryEditSizePercents := 0;
+
+  fn := Application.Location + 'mapmarker.png';
+  if not FileExists(fn) then
+    MessageDlg('Copy the file "mapmarker.png" from the source folder to the folder with the executable.',
+      mtError, [mbOK], 0)
+  else
+  begin
+    //  FMapMarker := CreateMapMarker(32, clRed, clBlack);
+    POIImage := TPortableNetworkGraphic.Create;
+    POIImage.PixelFormat := pf32bit;
+    POIImage.LoadFromFile(fn);
+  end;
 
   ForceDirectories(HOMEDIR + 'cache/');
   MapView.CachePath := HOMEDIR + 'cache/';
   MapView.GetMapProviders(CbProviders.Items);
-  CbProviders.ItemIndex := CbProviders.Items.Indexof(MapView.MapProvider);
+  CbProviders.ItemIndex := CbProviders.Items.IndexOf(MapView.MapProvider);
   MapView.DoubleBuffered := true;
   MapView.Zoom := 1;
   CbZoomToCursor.Checked := MapView.ZoomToCursor;

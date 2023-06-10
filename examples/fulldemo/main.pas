@@ -32,6 +32,7 @@ type
     CbDebugTiles: TCheckBox;
     cbPOITextBgColor: TColorBox;
     CbZoomToCursor: TCheckBox;
+    cbCyclicView: TCheckBox;
     FontDialog: TFontDialog;
     GbCenterCoords: TGroupBox;
     GbScreenSize: TGroupBox;
@@ -74,6 +75,7 @@ type
     procedure BtnGPSPointsClick(Sender: TObject);
     procedure BtnSaveToFileClick(Sender: TObject);
     procedure BtnPOITextFontClick(Sender: TObject);
+    procedure cbCyclicViewChange(Sender: TObject);
     procedure CbDebugTilesChange(Sender: TObject);
     procedure CbDoubleBufferChange(Sender: TObject);
     procedure CbFoundLocationsDrawItem(Control: TWinControl; Index: Integer;
@@ -326,6 +328,11 @@ begin
   FontDialog.Font.Assign(MapView.Font);
   if FontDialog.Execute then
     MapView.Font.Assign(FontDialog.Font);
+end;
+
+procedure TMainForm.cbCyclicViewChange(Sender: TObject);
+begin
+  MapView.Cyclic := cbCyclicView.Checked;
 end;
 
 procedure TMainForm.CbDebugTilesChange(Sender: TObject);

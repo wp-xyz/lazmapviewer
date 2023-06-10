@@ -1,0 +1,5 @@
+{ "MapViewer_Colored_Tracks" : {
+   "Category" : "ThirdParty",
+   "Keywords" : ["TMapView", "geography", "earth", "maps", "GPS", "longitude", "latitude", "tracks", "gpx"],
+   "Description" : "This project demonstrates how gpx track files can be loaded into and displayed by the TMapView."}
+}

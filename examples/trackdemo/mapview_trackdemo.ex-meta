@@ -1,0 +1,5 @@
+{ "MapViewer_TrackDemo" : {
+   "Category" : "ThirdParty",
+   "Keywords" : ["TMapView", "geography", "earth", "maps", "GPS", "longitude", "latitude", "tracks", "gpx"],
+   "Description" : "Loads and displays a gpx track file. The individual track points are listed with their gps coordinates, elevation and times in a grid. A marker is shown in the map for the trackpoint selected in the grid.\n"}
+}

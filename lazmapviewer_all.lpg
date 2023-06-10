@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CONFIG>
+  <ProjectGroup FileVersion="2">
+    <Targets>
+      <Target FileName="lazmapviewerpkg.lpk"/>
+      <Target FileName="lazmapviewer_rgbgraphics.lpk"/>
+      <Target FileName="lazmapviewer_bgra.lpk"/>
+      <Target FileName="lazmapviewer_synapse.lpk"/>
+      <Target FileName="examples\colored_tracks\coloredtracks_demo.lpi">
+        <BuildModes>
+          <Mode Name="Default"/>
+        </BuildModes>
+      </Target>
+      <Target FileName="examples\trackdemo\track_demo.lpi">
+        <BuildModes>
+          <Mode Name="Default"/>
+        </BuildModes>
+      </Target>
+      <Target FileName="examples\fulldemo\MapViewer_Demo.lpi">
+        <BuildModes>
+          <Mode Name="default"/>
+        </BuildModes>
+      </Target>
+      <Target FileName="examples\fulldemo_with_addons\mapviewer_demo_with_addons.lpi">
+        <BuildModes>
+          <Mode Name="default"/>
+        </BuildModes>
+      </Target>
+      <Target FileName="unittests\mapviewer_tests.lpi">
+        <BuildModes>
+          <Mode Name="Default"/>
+        </BuildModes>
+      </Target>
+    </Targets>
+  </ProjectGroup>
+</CONFIG>
