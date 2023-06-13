@@ -20,7 +20,7 @@ unit mvEngine;
 interface
 
 uses
-  Classes, SysUtils, IntfGraphics, Controls, Math,
+  Classes, SysUtils, IntfGraphics, Controls, Math, GraphType, FPImage,
   mvTypes, mvJobQueue, mvMapProvider, mvDownloadEngine, mvCache, mvDragObj;
 
 const
@@ -59,9 +59,11 @@ type
       DragObj : TDragObj;
       Cache : TPictureCache;
       FActive: boolean;
+      FBkColor: TFPColor;
       FCyclic: Boolean;
       FDownloadEngine: TMvCustomDownloadEngine;
       FDrawTitleInGuiThread: boolean;
+      FEmptyTileImg: TLazIntfImage;
       FOnCenterMove: TNotifyEvent;
       FOnChange: TNotifyEvent;
       FOnDrawTile: TDrawTileEvent;
@@ -81,6 +83,7 @@ type
       function IsValidTile(const aWin: TMapWindow; const aTile: TTIleId): boolean;
       procedure MoveMapCenter(Sender: TDragObj);
       procedure SetActive(AValue: boolean);
+      procedure SetBkColor(AValue: TFPColor);
       procedure SetCacheOnDisk(AValue: Boolean);
       procedure SetCachePath(AValue: String);
       procedure SetCenter(ACenter: TRealPoint);
@@ -104,6 +107,7 @@ type
       function IsCurrentWin(const aWin: TMapWindow) : boolean;
     protected
       procedure AdjustZoomCenter(var AWin: TMapWindow);
+      function CreateBlankImg: TLazIntfImage;
       procedure ConstraintZoom(var aWin: TMapWindow);
       function GetTileName(const Id: TTileId): String;
       procedure evDownload(Data: TObject; Job: TJob);
@@ -143,6 +147,7 @@ type
         WheelDelta: Integer; {%H-}MousePos: TPoint; var Handled: Boolean);
       procedure ZoomOnArea(const aArea: TRealArea);
 
+      property BkColor: TFPColor read FBkColor write SetBkColor;
       property Center: TRealPoint read GetCenter write SetCenter;
 
     published
@@ -377,6 +382,8 @@ begin
   DragObj.OnDrag := @DoDrag;
   Cache := TPictureCache.Create(self);
   lstProvider := TStringList.Create;
+  FBkColor := colWhite;
+  FEmptyTileImg := CreateBlankImg;
   RegisterProviders;
   Queue := TJobQueue.Create(8);
   Queue.OnIdle := @Cache.CheckCacheSize;
@@ -395,6 +402,7 @@ begin
   FreeAndNil(lstProvider);
   FreeAndNil(Cache);
   FreeAndNil(Queue);
+  FreeAndNil(FEmptyTileImg);
   inherited Destroy;
 end;
 
@@ -436,7 +444,7 @@ begin
   startY := -aWin.Y div TILE_SIZE;
   Result.Left := startX - 1;
   Result.Right := startX + MaxX;
-  Result.Top := startY;
+  Result.Top := startY - 1;
   Result.Bottom := startY + MaxY;
 end;
 
@@ -483,6 +491,22 @@ begin
     if aWin.Zoom > zMax then
       aWin.Zoom := zMax;
   end;
+end;
+
+function TMapViewerEngine.CreateBlankImg: TLazIntfImage;
+var
+  rawImg: TRawImage;
+begin
+  rawImg.Init;
+  {$IFDEF DARWIN}
+  rawImg.Description.Init_BPP32_A8R8G8B8_BIO_TTB(TILE_SIZE, TILE_SIZE);
+  {$ELSE}
+  rawImg.Description.Init_BPP32_B8G8R8_BIO_TTB(TILE_SIZE, TILE_SIZE);
+  {$ENDIF}
+  rawImg.CreateData(True);
+
+  Result := TLazIntfImage.Create(rawImg, true);
+  Result.FillPixels(FBkColor);
 end;
 
 { Returns true when the visible window crosses the date line, i.e. the longitudes
@@ -1028,17 +1052,19 @@ begin
   Redraw(MapWin);
 end;
 
-procedure TMapViewerEngine.Redraw(const AWin: TmapWindow);
+procedure TMapViewerEngine.Redraw(const AWin: TMapWindow);
 var
   TilesVis: TArea;
   x, y : Integer; //int64;
   Tiles: TTileIdArray = nil;
   iTile: Integer;
   numTiles: Integer;
+  px, py: Integer;
 begin
   if not(Active) then
     Exit;
   Queue.CancelAllJob(self);
+
   TilesVis := CalculateVisibleTiles(AWin);
   SetLength(Tiles, (TilesVis.Bottom - TilesVis.Top + 1) * (TilesVis.Right - TilesVis.Left + 1));
   iTile := Low(Tiles);
@@ -1055,6 +1081,16 @@ begin
         Tiles[iTile].X := X;
       Tiles[iTile].Y := Y;
       Tiles[iTile].Z := AWin.Zoom;
+
+      // Avoid tiling artefacts when a tile does not exist (lowest zoom) or
+      // is not valid
+      if not Cache.InCache(AWin.MapProvider, Tiles[iTile]) then
+      begin
+        py := AWin.Y + Y * TILE_SIZE;
+        px := AWin.X + X * TILE_SIZE;
+        DrawTile(Tiles[iTile], px, py, FEmptyTileImg);
+      end;
+
       if IsValidTile(AWin, Tiles[iTile]) then
         inc(iTile);
     end;
@@ -1075,6 +1111,10 @@ end;
 //https://mc.bbbike.org/mc/?num=2
 //https://mc.bbbike.org/mc/?lon=37.62178&lat=55.740937&zoom=14&num=1&mt0=opentopomap&mt1=mapnik-german
 //https://t.ssl.ak.dynamic.tiles.virtualearth.net/comp/ch/12031010103311?mkt=ru-RU&it=G,BX,RL&shading=hill&n=z&og=677&c4w=1&cstl=vb&src=h
+//https://www.thunderforest.com/docs/map-tiles-api/
+
+// Some providers submitted by "kangozidev" (https://github.com/wp-xyz/lazmapviewer/issues/1#issuecomment-1585534499)
+
 procedure TMapViewerEngine.RegisterProviders;
 var
   HERE1, HERE2: String;
@@ -1086,6 +1126,8 @@ begin
   AddMapProvider('OpenStreetMap.fr Hot', ptEPSG3857, 'https://%serv%.tile.openstreetmap.fr/hot/%z%/%x%/%y%.png', 0, 18, 3, @GetSvrLetter);
   AddMapProvider('Open Topo Map', ptEPSG3857, 'http://%serv%.tile.opentopomap.org/%z%/%x%/%y%.png', 0, 19, 3, @GetSvrLetter);
   AddMapProvider('OpenStreetMap.fr Cycle Map', ptEPSG3857, 'https://dev.%serv%.tile.openstreetmap.fr/cyclosm/%z%/%x%/%y%.png', 0, 18, 3, @GetSvrLetter);
+  AddMapProvider('OSM Refuges', ptEPSG3857, 'https://maps.refuges.info/hiking/%z%/%x%/%y%.png', 0, 19, 4, nil);
+
 
   // API Key required
   if (ThunderForest_ApiKey <> '') then
@@ -1094,8 +1136,17 @@ begin
     //    https://www.thunderforest.com/docs/apikeys/
     // The API key is found on their website after registration and logging in.
     // Store the API key in the ini file under key [ThunderForest] as item API_Key
-    AddMapProvider('Open Cycle Map', ptEPSG3857, 'https://tile.thunderforest.com/cycle/%z%/%x%/%y%.png?apikey=' + ThunderForest_ApiKey, 0, 18, 3, nil, nil, nil, nil);
-    AddMapProvider('OpenStreetMap Transport', ptEPSG3857, 'https://tile.thunderforest.com/transport/%z%/%x%/%y%.png?apikey=' + ThunderForest_ApiKey, 0, 18, 3, nil, nil, nil, nil);
+    AddMapProvider('ThunderForest Open Cycle Map', ptEPSG3857, 'https://tile.thunderforest.com/cycle/%z%/%x%/%y%.png?apikey=' + ThunderForest_ApiKey, 0, 19, 3, nil, nil, nil, nil);
+    AddMapProvider('ThunderForest OpenStreetMap Transport', ptEPSG3857, 'https://tile.thunderforest.com/transport/%z%/%x%/%y%.png?apikey=' + ThunderForest_ApiKey, 0, 19, 3, nil, nil, nil, nil);
+
+    AddMapProvider('ThunderForest Neighbourhood', ptEPSG3857, 'https://tile.thunderforest.com/neighbourhood/%z%/%x%/%y%.png?apikey=' + ThunderForest_ApiKey, 0, 19, 4, nil);
+    AddMapProvider('ThunderForest Atlas', ptEPSG3857, 'https://tile.thunderforest.com/atlas/%z%/%x%/%y%.png?apikey=' + ThunderForest_ApiKey, 0, 19, 4, nil);
+    AddMapProvider('ThunderForest Pioneer', ptEPSG3857, 'https://tile.thunderforest.com/pioneer/%z%/%x%/%y%.png?apikey=' + ThunderForest_ApiKey, 0, 19, 4, nil);
+    AddMapProvider('ThunderForest Outdoors', ptEPSG3857, 'https://tile.thunderforest.com/outdoors/%z%/%x%/%y%.png?apikey=' + ThunderForest_ApiKey, 0, 19, 4, nil);
+    AddMapProvider('ThunderForest Landscape', ptEPSG3857, 'https://tile.thunderforest.com/outdoors/%z%/%x%/%y%.png?apikey=' + ThunderForest_ApiKey, 0, 19, 4, nil);
+    AddMapProvider('ThunderForest Mobile-Atlas', ptEPSG3857, 'https://tile.thunderforest.com/mobile-atlas/%z%/%x%/%y%.png?apikey=' + ThunderForest_ApiKey, 0, 19, 4, nil);
+    AddMapProvider('ThunderForest Transport-Dark', ptEPSG3857, 'https://tile.thunderforest.com/transport-dark/%z%/%x%/%y%.png?apikey=' + ThunderForest_ApiKey, 0, 19, 4, nil);
+    AddMapProvider('ThunderForest Spinal-Map', ptEPSG3857, 'https://tile.thunderforest.com/spinal-map/%z%/%x%/%y%.png?apikey=' + ThunderForest_ApiKey, 0, 19, 4, nil);
 
     // The following providers could be used alternatively. No API key required,
     // but gray "API Key required" watermark and maybe other restrictions!
@@ -1108,7 +1159,6 @@ begin
   AddMapProvider('Google Satellite', ptEPSG3857, 'http://mt%serv%.google.com/vt/lyrs=y&hl=en&x=%x%&y=%y%&z=%z%' , 0, 19, 4, nil);
   // not working any more (June 2023), replaced by above:
   //AddMapProvider('Google Satellite', ptEPSG3857, 'http://khm%serv%.google.com/kh/v=863?x=%x%&y=%y%&z=%z%', 0, 19, 4, nil);
-  // Additional Google providers, submitted by "kangozidev" (https://github.com/wp-xyz/lazmapviewer/issues/1#issuecomment-1585534499)
   AddMapProvider('Google Terrain', ptEPSG3857, 'http://mt%serv%.google.com/vt/lyrs=p&hl=en&x=%x%&y=%y%&z=%z%' , 0, 19, 4, nil);
   AddMapProvider('Google Satellite Only', ptEPSG3857, 'http://mt%serv%.google.com/vt/lyrs=s&hl=en&x=%x%&y=%y%&z=%z%' , 0, 19, 4, nil);
   AddMapProvider('Google Altered Roadmap', ptEPSG3857, 'http://mt%serv%.google.com/vt/lyrs=r&hl=en&x=%x%&y=%y%&z=%z%' , 0, 19, 4, nil);
@@ -1117,9 +1167,9 @@ begin
   // Yandex
   AddMapProvider('Yandex.Maps', ptEPSG3395, 'https://core-renderer-tiles.maps.yandex.net/tiles?l=map&x=%x%&y=%y%&z=%z%&scale=1&lang=ru_RU', 0, 19, 4, nil, nil, nil, nil);
   AddMapProvider('Yandex.Maps Satellite', ptEPSG3395, 'https://core-sat.maps.yandex.net/tiles?l=sat&x=%x%&y=%y%&z=%z%', 0, 19, 4, nil, nil, nil, nil);
+  AddMapProvider('Yandex.Maps Satellite-old', ptEPSG3395, 'https://sat0%serv%.maps.yandex.net/tiles?l=sat&x=%x%&y=%y%&z=%z%', 0, 19, 4, @GetSvrBase1, nil, nil, nil);
   // The next ones are no longer valid. Keeping them here just in case ...
-  // AddMapProvider('Yandex.Maps', ptEPSG3395, 'https://vec0%serv%.maps.yandex.net/tiles?l=map&x=%x%&y=%y%&z=%z%&scale=1&lang=ru_RU', 0, 19, 4, @GetSvrBase1, nil, nil, nil);
-  // AddMapProvider('Yandex.Maps Satellite', ptEPSG3395, 'https://sat0%serv%.maps.yandex.net/tiles?l=sat&x=%x%&y=%y%&z=%z%', 0, 19, 4, @GetSvrBase1, nil, nil, nil);
+  //AddMapProvider('Yandex.Maps-old', ptEPSG3395, 'https://vec0%serv%.maps.yandex.net/tiles?l=map&x=%x%&y=%y%&z=%z%&scale=1&lang=ru_RU', 0, 19, 4, @GetSvrBase1, nil, nil, nil);
 
   // Bing
   AddMapProvider('Virtual Earth Bing', ptEPSG3857, 'http://ecn.t%serv%.tiles.virtualearth.net/tiles/r%x%?g=671&mkt=en-us&lbl=l1&stl=h&shading=hill', 1, 19, 8, nil, @GetStrQuadKey);
@@ -1161,6 +1211,50 @@ begin
   AddMapProvider('Google Physical', ptEPSG3857, 'http://mt%serv%.google.com/vt/lyrs=t@145&v=w2.104&x=%x%&y=%y%&z=%z%', 0, 19, 4, nil);
   AddMapProvider('Yandex.Maps Hybrid', ptEPSG3395, 'https://vec0%serv%.maps.yandex.net/tiles?l=skl&x=%x%&y=%y%&z=%z%', 0, 19, 4, @GetSvrBase1, nil, nil, nil);
   }
+
+  // ArcGIS
+  AddMapProvider('ArcGIS World Street Map', ptEPSG3857, 'http://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/%z%/%y%/%x%.jpg', 0, 19, 4, nil);
+  AddMapProvider('ArcGIS World Shaded Relief', ptEPSG3857, 'http://server.arcgisonline.com/ArcGIS/rest/services/World_Shaded_Relief/MapServer/tile/%z%/%y%/%x%.jpg', 0, 19, 4, nil);
+//  AddMapProvider('ArcGIS World Physical Map', ptEPSG3857, 'http://server.arcgisonline.com/ArcGIS/rest/services/World_Physical_Map/MapServer/tile/%z%/%y%/%x%.jpg', 0, 19, 4, nil);   --- not yet available
+  AddMapProvider('ArcGIS NatGeo World Map', ptEPSG3857, 'http://services.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/%z%/%y%/%x%', 0, 19, 4, nil);
+//  AddMapProvider('ArcGIS Ocean Base', ptEPSG3857, 'http://services.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/%z%/%y%/%x%.jpg', 0, 19, 4, nil);  // --- not yet available
+//  AddMapProvider('ArcGIS Imagery', ptEPSG3857, 'http://services.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/%z%/%y%/%x%.jpg', 0, 19, 4, nil);  // not available
+  AddMapProvider('ArcGIS Clarity', ptEPSG3857, 'https://clarity.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/%z%/%y%/%x%?blankTile=false', 0, 19, 4, nil);
+
+  // Apple
+  AddMapProvider('GSP2 Apple', ptEPSG3857, 'http://gsp2.apple.com/tile?api=1&style=slideshow&layers=default&lang=de_DE&z=%z%&x=%x%&y=%y%&v=9', 0, 19, 4, nil);
+
+  // CartoDB
+  AddMapProvider('CartoDB Light All', ptEPSG3857, 'https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/%z%/%x%/%y%.png', 0, 19, 4, nil);
+  AddMapProvider('CartoDB Voyager', ptEPSG3857, 'https://cartodb-basemaps-a.global.ssl.fastly.net/rastertiles/voyager/%z%/%x%/%y%.png', 0, 19, 4, nil);
+
+  // Maps for free
+  AddMapProvider('Map For Free', ptEPSG3857, 'http://maps-for-free.com/layer/relief/z%z%/row%y%/%z%_%x%-%y%.jpg', 0, 19, 4, nil);
+
+  // MemoMaps
+  AddMapProvider('Memo Maps', ptEPSG3857,'http://tile.memomaps.de/tilegen/%z%/%x%/%y%.png', 0, 19, 4, nil);
+
+  // Sigma DC Control
+  //AddMapProvider('Sigma DC Control', ptEPSG3857,'http://tiles1.sigma-dc-control.com/layer5/%z%/%x%/%y%.png', 0, 19, 4, nil);  // -- not working
+
+  // Stamen
+  AddMapProvider('Stamen Terrain', ptEPSG3857, 'http://tile.stamen.com/terrain/%z%/%x%/%y%.jpg', 0, 19, 4, nil);
+  AddMapProvider('Stamen Watercolor', ptEPSG3857, 'https://stamen-tiles.a.ssl.fastly.net/watercolor/%z%/%x%/%y%.jpg' , 0, 19, 4, nil);
+
+  // Via Michelin
+  AddMapProvider('ViaMichelin', ptEPSG3857, 'http://map1.viamichelin.com/map/mapdirect?map=light&z=%z%&x=%x%&y=%y%&format=png&version=201503191157&layer=background', 0, 19, 4, nil);
+
+  // GeoApify
+  //AddMapProvider('Geoapify Map Tiles', ptEPSG3857, 'https://maps.geoapify.com/v1/tile/osm-bright-smooth/%z%/%x%/%y%.png' , 0, 19, 4, nil);     // -- not working
+
+  // Stadia outdoors
+  // AddMapProvider('Stadia Outdoors', ptEPSG3857, 'https://tiles.stadiamaps.com/tiles/outdoors/%z%/%x%/%y%.png', 0, 19, 4, nil);   -- subscription required
+
+  // Tracestrack
+  //AddMapProvider('Tracestrack Carto', ptEPSG3857, 'https://tile.tracestrack.com/en/%z%/%x%/%y%.png,' , 0, 19, 4, nil);      // -- not working
+
+  // Waze
+  AddMapProvider('Waze Background', ptEPSG3857, 'https://worldtiles1.waze.com/tiles/%z%/%x%/%y%.png', 0, 19, 4, nil);
 end;
 
 function TMapViewerEngine.ScreenToLonLat(aPt: TPoint): TRealPoint;
@@ -1179,6 +1273,14 @@ begin
     if Cache.UseDisk then ForceDirectories(Cache.BasePath);
     Redraw(MapWin);
   end;
+end;
+
+procedure TMapViewerEngine.SetBkColor(AValue: TFPColor);
+begin
+  if FBkColor = AValue then Exit;
+  FBkColor := AValue;
+  FEmptyTileImg.FillPixels(FBkColor);
+  Redraw(MapWin);
 end;
 
 procedure TMapViewerEngine.SetCacheOnDisk(AValue: Boolean);

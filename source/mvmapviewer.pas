@@ -22,7 +22,7 @@ unit mvMapViewer;
 interface
 
 uses
-  Classes, SysUtils, Controls, Graphics, IntfGraphics, Forms, ImgList, LCLVersion,
+  Classes, SysUtils, Controls, Graphics, FPImage, IntfGraphics, Forms, ImgList, LCLVersion,
   MvTypes, MvGPSObj, MvEngine, MvMapProvider, MvDownloadEngine, MvDrawingEngine;
 
 Type
@@ -41,7 +41,6 @@ Type
       FDrawingEngine: TMvCustomDrawingEngine;
       FActive: boolean;
       FGPSItems: TGPSObjectList;
-      FInactiveColor: TColor;
       FPOIImage: TBitmap;
       FPOITextBgColor: TColor;
       FOnDrawGpsPoint: TDrawGpsPointEvent;
@@ -63,6 +62,7 @@ Type
       function GetCyclic: Boolean;
       function GetDownloadEngine: TMvCustomDownloadEngine;
       function GetDrawingEngine: TMvCustomDrawingEngine;
+      function GetInactiveColor: TColor;
       function GetMapProvider: String;
       function GetOnCenterMove: TNotifyEvent;
       function GetOnChange: TNotifyEvent;
@@ -150,7 +150,7 @@ Type
       property DrawingEngine: TMvCustomDrawingEngine read GetDrawingEngine write SetDrawingEngine;
       property Font: TFont read FFont write SetFont stored IsFontStored;
       property Height default 150;
-      property InactiveColor: TColor read FInactiveColor write SetInactiveColor default clWhite;
+      property InactiveColor: TColor read GetInactiveColor write SetInactiveColor default clWhite;
       property MapProvider: String read GetMapProvider write SetMapProvider;
       property POIImage: TBitmap read FPOIImage write SetPOIImage;
       property POIImages: TCustomImageList read FPOIImages write SetPOIImages;
@@ -343,6 +343,11 @@ begin
     Result := FDrawingEngine;
 end;
 
+function TMapView.GetInactiveColor: TColor;
+begin
+  Result := FPColorToTColor(Engine.BkColor);
+end;
+
 function TMapView.GetMapProvider: String;
 begin
   result := Engine.MapProvider;
@@ -457,9 +462,7 @@ end;
 
 procedure TMapView.SetInactiveColor(AValue: TColor);
 begin
-  if FInactiveColor = AValue then
-    exit;
-  FInactiveColor := AValue;
+  Engine.BkColor := TColorToFPColor(AValue);
   if not IsActive then
     Invalidate;
 end;
@@ -828,7 +831,7 @@ begin
     DrawingEngine.DrawLazIntfImage(X, Y, TileImg);
   end
   else begin
-    DrawingEngine.BrushColor := clWhite;
+    DrawingEngine.BrushColor := InactiveColor;
     DrawingEngine.BrushStyle := bsSolid;
     DrawingEngine.FillRect(X, Y, X + TILE_SIZE, Y + TILE_SIZE);
   end;
@@ -866,7 +869,6 @@ begin
   FActive := false;
   FDefaultTrackColor := clRed;
   FDefaultTrackWidth := 1;
-  FInactiveColor := clWhite;
 
   FGPSItems := TGPSObjectList.Create;
   FGPSItems.OnModified := @OnGPSItemsModified;
@@ -879,6 +881,7 @@ begin
   FBuiltinDownloadEngine.Name := 'BuiltInDLE';
 
   FEngine := TMapViewerEngine.Create(self);
+  FEngine.BkColor := colWhite;
   FEngine.CachePath := 'cache/';
   FEngine.CacheOnDisk := true;
   FEngine.OnDrawTile := @DoDrawTile;

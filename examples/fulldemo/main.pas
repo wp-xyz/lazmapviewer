@@ -33,6 +33,7 @@ type
     cbPOITextBgColor: TColorBox;
     CbZoomToCursor: TCheckBox;
     cbCyclicView: TCheckBox;
+    ColorButton1: TColorButton;
     FontDialog: TFontDialog;
     GbCenterCoords: TGroupBox;
     GbScreenSize: TGroupBox;
@@ -86,6 +87,7 @@ type
     procedure CbUseThreadsChange(Sender: TObject);
     procedure CbDistanceUnitsChange(Sender: TObject);
     procedure CbZoomToCursorChange(Sender: TObject);
+    procedure ColorButton1ColorChanged(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure FormShow(Sender: TObject);
@@ -410,6 +412,11 @@ begin
   MapView.ZoomToCursor := CbZoomToCursor.Checked;
 end;
 
+procedure TMainForm.ColorButton1ColorChanged(Sender: TObject);
+begin
+  MapView.InactiveColor := ColorButton1.ButtonColor;
+end;
+
 procedure TMainForm.ClearFoundLocations;
 var
   i: Integer;
@@ -732,6 +739,7 @@ begin
     pt.Lon := StrToFloatDef(ini.ReadString('MapView', 'Center.Longitude', ''), 0.0, PointFormatSettings);
     pt.Lat := StrToFloatDef(ini.ReadString('MapView', 'Center.Latitude', ''), 0.0, PointFormatSettings);
     MapView.Center := pt;
+    MapView.InactiveColor := ini.ReadInteger('MapView', 'MapBkgrColor', MapView.InactiveColor);
 
     s := ini.ReadString('MapView', 'DistanceUnits', '');
     if s <> '' then begin
@@ -877,7 +885,7 @@ begin
     ini.WriteInteger('MapView', 'Zoom', MapView.Zoom);
     ini.WriteString('MapView', 'Center.Longitude', FloatToStr(MapView.Center.Lon, PointFormatSettings));
     ini.WriteString('MapView', 'Center.Latitude', FloatToStr(MapView.Center.Lat, PointFormatSettings));
-
+    ini.WriteInteger('MapView', 'MapBkgrColor', MapView.InactiveColor);
     ini.WriteString('MapView', 'DistanceUnits', DistanceUnit_Names[DistanceUnit]);
 
     if HERE_AppID <> '' then
