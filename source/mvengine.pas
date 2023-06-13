@@ -30,8 +30,11 @@ const
   EARTH_ECCENTRICITY = sqrt(1 - sqr(EARTH_POLAR_RADIUS / EARTH_EQUATORIAL_RADIUS));
 
 type
-  TDrawTileEvent = Procedure (const TileId: TTileId; X,Y: integer;
+  TDrawTileEvent = procedure (const TileId: TTileId; X,Y: integer;
     TileImg: TLazIntfImage) of object;
+
+  TDrawStretchedTileEvent = procedure (const TileId: TTileId; X,Y: Integer;
+    TileImg: TLazIntfImage; const R: TRect) of object;
 
   TTileIdArray = Array of TTileId;
 
@@ -62,11 +65,12 @@ type
       FBkColor: TFPColor;
       FCyclic: Boolean;
       FDownloadEngine: TMvCustomDownloadEngine;
+      FDrawPreviewTiles: Boolean;
       FDrawTitleInGuiThread: boolean;
-      FEmptyTileImg: TLazIntfImage;
       FOnCenterMove: TNotifyEvent;
       FOnChange: TNotifyEvent;
       FOnDrawTile: TDrawTileEvent;
+      FOnDrawStretchedTile: TDrawStretchedTileEvent;
       FOnZoomChange: TNotifyEvent;
       lstProvider : TStringList;
       Queue : TJobQueue;
@@ -107,11 +111,11 @@ type
       function IsCurrentWin(const aWin: TMapWindow) : boolean;
     protected
       procedure AdjustZoomCenter(var AWin: TMapWindow);
-      function CreateBlankImg: TLazIntfImage;
       procedure ConstraintZoom(var aWin: TMapWindow);
       function GetTileName(const Id: TTileId): String;
       procedure evDownload(Data: TObject; Job: TJob);
       procedure TileDownloaded(Data: PtrInt);
+      procedure DrawStretchedTile(const TileId: TTileID; X, Y: Integer; TileImg: TLazIntfImage; const R: TRect);
       Procedure DrawTile(const TileId: TTileId; X,Y: integer; TileImg: TLazIntfImage);
       Procedure DoDrag(Sender: TDragObj);
     public
@@ -149,6 +153,7 @@ type
 
       property BkColor: TFPColor read FBkColor write SetBkColor;
       property Center: TRealPoint read GetCenter write SetCenter;
+      property DrawPreviewTiles : Boolean read FDrawPreviewTiles write FDrawPreviewTiles;
 
     published
       property Active: Boolean read FActive write SetActive default false;
@@ -169,6 +174,7 @@ type
 
       property OnCenterMove: TNotifyEvent read FOnCenterMove write FOnCenterMove;
       property OnChange: TNotifyEvent Read FOnChange write FOnchange; //called when visiable area change
+      property OnDrawStretchedTile: TDrawStretchedTileEvent read FOnDrawStretchedTile write FOnDrawStretchedTile;
       property OnDrawTile: TDrawTileEvent read FOnDrawTile write FOnDrawTile;
       property OnZoomChange: TNotifyEvent read FOnZoomChange write FOnZoomChange;
   end;
@@ -378,12 +384,12 @@ end;
 constructor TMapViewerEngine.Create(aOwner: TComponent);
 begin
   DrawTitleInGuiThread := true;
+  DrawPreviewTiles := true;
   DragObj := TDragObj.Create;
   DragObj.OnDrag := @DoDrag;
   Cache := TPictureCache.Create(self);
   lstProvider := TStringList.Create;
   FBkColor := colWhite;
-  FEmptyTileImg := CreateBlankImg;
   RegisterProviders;
   Queue := TJobQueue.Create(8);
   Queue.OnIdle := @Cache.CheckCacheSize;
@@ -402,7 +408,6 @@ begin
   FreeAndNil(lstProvider);
   FreeAndNil(Cache);
   FreeAndNil(Queue);
-  FreeAndNil(FEmptyTileImg);
   inherited Destroy;
 end;
 
@@ -493,22 +498,6 @@ begin
   end;
 end;
 
-function TMapViewerEngine.CreateBlankImg: TLazIntfImage;
-var
-  rawImg: TRawImage;
-begin
-  rawImg.Init;
-  {$IFDEF DARWIN}
-  rawImg.Description.Init_BPP32_A8R8G8B8_BIO_TTB(TILE_SIZE, TILE_SIZE);
-  {$ELSE}
-  rawImg.Description.Init_BPP32_B8G8R8_BIO_TTB(TILE_SIZE, TILE_SIZE);
-  {$ENDIF}
-  rawImg.CreateData(True);
-
-  Result := TLazIntfImage.Create(rawImg, true);
-  Result.FillPixels(FBkColor);
-end;
-
 { Returns true when the visible window crosses the date line, i.e. the longitudes
   at the left of the window are > 0, and those at the right are < 0. }
 function TMapViewerEngine.CrossesDateline: Boolean;
@@ -540,6 +529,13 @@ procedure TMapViewerEngine.DoDrag(Sender: TDragObj);
 begin
   if Sender.DragSrc = self then
     MoveMapCenter(Sender);
+end;
+
+procedure TMapViewerEngine.DrawStretchedTile(const TileID: TTileID; X, Y: Integer;
+  TileImg: TLazIntfImage; const R: TRect);
+begin
+  if Assigned(FOnDrawStretchedTile) then
+    FOnDrawStretchedTile(TileId, X, Y, TileImg, R);
 end;
 
 procedure TMapViewerEngine.DrawTile(const TileId: TTileId; X, Y: integer;
@@ -1058,8 +1054,12 @@ var
   x, y : Integer; //int64;
   Tiles: TTileIdArray = nil;
   iTile: Integer;
+  tile: TTileID;
   numTiles: Integer;
   px, py: Integer;
+  previewDrawn: Boolean;
+  previewImg: TLazIntfImage;
+  R: TRect;
 begin
   if not(Active) then
     Exit;
@@ -1086,9 +1086,24 @@ begin
       // is not valid
       if not Cache.InCache(AWin.MapProvider, Tiles[iTile]) then
       begin
+        previewdrawn := False;
         py := AWin.Y + Y * TILE_SIZE;
         px := AWin.X + X * TILE_SIZE;
-        DrawTile(Tiles[iTile], px, py, FEmptyTileImg);
+        if FDrawPreviewTiles then
+        begin
+          if IsValidTile(AWin, Tiles[iTile]) then  // Invalid tiles probably will not be found in the cache
+          begin
+            tile := Tiles[iTile];
+            if Cache.GetPreviewFromCache(AWin.MapProvider, tile, R) then
+            begin
+              Cache.GetFromCache(AWin.MapProvider, tile, previewImg);
+              DrawStretchedTile(Tiles[iTile], px, py, previewImg, R);
+              previewDrawn := true;
+            end;
+          end;
+        end;
+        if not previewDrawn then
+          DrawTile(Tiles[iTile], px, py, nil);  // Draw blank tile if preview cannot be generated
       end;
 
       if IsValidTile(AWin, Tiles[iTile]) then
@@ -1279,7 +1294,6 @@ procedure TMapViewerEngine.SetBkColor(AValue: TFPColor);
 begin
   if FBkColor = AValue then Exit;
   FBkColor := AValue;
-  FEmptyTileImg.FillPixels(FBkColor);
   Redraw(MapWin);
 end;
 

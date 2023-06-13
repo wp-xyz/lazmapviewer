@@ -17,7 +17,7 @@ interface
 
 uses
   Classes, SysUtils, Graphics, Types, LclVersion,
-  FPImage, FPCanvas, IntfGraphics,
+  FPImage, FPCanvas, IntfGraphics, LazCanvas,
   mvDrawingEngine;
 
 type
@@ -54,7 +54,9 @@ type
     procedure DrawBitmap(X, Y: Integer; ABitmap: TCustomBitmap;
       UseAlphaChannel: Boolean); override;
     procedure DrawLazIntfImage(X, Y: Integer; AImg: TLazIntfImage); override;
+    procedure DrawScaledLazIntfImage(DestRect, SrcRect: TRect; ASrcImg: TLazIntfImage); override;
     procedure Ellipse(X1, Y1, X2, Y2: Integer); override;
+    procedure FillPixels(X1, Y1, X2, Y2: Integer; AColor: TColor); override;
     procedure FillRect(X1, Y1, X2, Y2: Integer); override;
     procedure Line(X1, Y1, X2, Y2: Integer); override;
     procedure PaintToCanvas(ACanvas: TCanvas); override;
@@ -222,10 +224,63 @@ begin
   {$IFEND}
 end;
 
+{ Scales the rectangle SrcRect of the specified source image (ASrcImg) such
+  that it fits into the rectangle DestRect of the Buffer image. }
+procedure TMvIntfGraphicsDrawingEngine.DrawScaledLazIntfImage(
+  DestRect, SrcRect: TRect; ASrcImg: TLazIntfImage);
+var
+  img: TLazIntfImage;
+  w, h, x, y: Integer;
+begin
+  if FCanvas = nil then
+    exit;
+
+  w := SrcRect.Right - SrcRect.Left;
+  h := SrcRect.Bottom - SrcRect.Top;
+
+  img := TLazIntfImage.Create(0, 0);
+  try
+    img.DataDescription := ASrcImg.DataDescription;
+    img.SetSize(w, h);
+    for y := 0 to h-1 do
+      for x := 0 to w-1 do
+        img.Colors[x, y] := ASrcImg.Colors[SrcRect.Left + x, SrcRect.Top + y];;
+    FCanvas.Interpolation := TFPSharpInterpolation.Create;
+    try
+      FCanvas.StretchDraw(DestRect.Left, DestRect.Top, DestRect.Width, DestRect.Height, img);
+    finally
+      FCanvas.Interpolation.Free;
+      FCanvas.Interpolation := nil;
+    end;
+  finally
+    img.Free;
+  end;
+end;
+
 procedure TMvIntfGraphicsDrawingEngine.Ellipse(X1, Y1, X2, Y2: Integer);
 begin
   if FCanvas <> nil then
     FCanvas.Ellipse(X1,Y1, X2, Y2);
+end;
+
+procedure TMvIntfGraphicsDrawingEngine.FillPixels(X1, Y1, X2, Y2: Integer;
+  AColor: TColor);
+var
+  c: TFPColor;
+  x, y: Integer;
+begin
+  if (X1 >= FBuffer.Width) or (X2 < 0) or (Y1 >= FBuffer.Height) or (Y2 < 0) then
+    exit;
+
+  if X1 < 0 then X1 := 0;
+  if Y1 < 0 then Y1 := 0;
+  if X2 >= FBuffer.Width then X2 := FBuffer.Width - 1;
+  if Y2 >= FBuffer.Height then Y2 := FBuffer.Height - 1;
+
+  c := TColorToFPColor(ColorToRGB(AColor));
+  for y := Y1 to Y2 do
+    for x := X1 to X2 do
+      FBuffer.Colors[x, y] := c;
 end;
 
 procedure TMvIntfGraphicsDrawingEngine.FillRect(X1, Y1, X2, Y2: Integer);

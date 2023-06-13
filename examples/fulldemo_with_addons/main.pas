@@ -36,6 +36,8 @@ type
     cbPOITextBgColor: TColorBox;
     CbZoomToCursor: TCheckBox;
     CbCyclic: TCheckBox;
+    CbPreviewTiles: TCheckBox;
+    clbBackColor: TColorButton;
     FontDialog: TFontDialog;
     GbCenterCoords: TGroupBox;
     GbScreenSize: TGroupBox;
@@ -83,12 +85,14 @@ type
     procedure CbFoundLocationsDrawItem(Control: TWinControl; Index: Integer;
       ARect: TRect; State: TOwnerDrawState);
     procedure cbPOITextBgColorChange(Sender: TObject);
+    procedure CbPreviewTilesChange(Sender: TObject);
     procedure CbProvidersChange(Sender: TObject);
     procedure CbShowPOIImageChange(Sender: TObject);
     procedure CbUseThreadsChange(Sender: TObject);
     procedure CbDistanceUnitsChange(Sender: TObject);
     procedure CbZoomToCursorChange(Sender: TObject);
     procedure CbCyclicChange(Sender: TObject);
+    procedure clbBackColorColorChanged(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure FormShow(Sender: TObject);
@@ -346,6 +350,11 @@ begin
   MapView.POITextBgColor := cbPOITextBgColor.Selected;
 end;
 
+procedure TMainForm.CbPreviewTilesChange(Sender: TObject);
+begin
+  MapView.DrawPreviewTiles := CbPreviewTiles.Checked;
+end;
+
 procedure TMainForm.CbProvidersChange(Sender: TObject);
 begin
   MapView.MapProvider := CbProviders.Text;
@@ -378,6 +387,11 @@ end;
 procedure TMainForm.CbCyclicChange(Sender: TObject);
 begin
   MapView.Cyclic := CbCyclic.Checked;
+end;
+
+procedure TMainForm.clbBackColorColorChanged(Sender: TObject);
+begin
+  MapView.InactiveColor := clbBackColor.ButtonColor;
 end;
 
 procedure TMainForm.ClearFoundLocations;
@@ -420,6 +434,7 @@ begin
   CbUseThreads.Checked := MapView.UseThreads;
   CbDoubleBuffer.Checked := MapView.DoubleBuffered;
   CbPOITextBgColor.Selected := MapView.POITextBgColor;
+  clbBackColor.ButtonColor := MapView.InactiveColor;
 
   InfoPositionLongitude.Caption := '';
   InfoPositionLatitude.Caption := '';
@@ -610,6 +625,8 @@ begin
     pt.Lon := StrToFloatDef(ini.ReadString('MapView', 'Center.Longitude', ''), 0.0, PointFormatSettings);
     pt.Lat := StrToFloatDef(ini.ReadString('MapView', 'Center.Latitude', ''), 0.0, PointFormatSettings);
     MapView.Center := pt;
+    MapView.InactiveColor := ini.ReadInteger('MapView', 'MapBkgrColor', MapView.InactiveColor);
+    clbBackColor.ButtonColor := MapView.InactiveColor;
 
     s := ini.ReadString('MapView', 'DistanceUnits', '');
     if s <> '' then begin
@@ -737,6 +754,7 @@ begin
     ini.WriteInteger('MapView', 'Zoom', MapView.Zoom);
     ini.WriteString('MapView', 'Center.Longitude', FloatToStr(MapView.Center.Lon, PointFormatSettings));
     ini.WriteString('MapView', 'Center.Latitude', FloatToStr(MapView.Center.Lat, PointFormatSettings));
+    ini.WriteInteger('MapView', 'MapBkgrColor', MapView.InactiveColor);
 
     ini.WriteString('MapView', 'DistanceUnits', DistanceUnit_Names[DistanceUnit]);
 

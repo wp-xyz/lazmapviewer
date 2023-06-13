@@ -855,13 +855,13 @@ object MainForm: TMainForm
         State = cbChecked
         TabOrder = 8
       end
-      object ColorButton1: TColorButton
+      object clbBackColor: TColorButton
         AnchorSideLeft.Control = cbCyclicView
-        AnchorSideTop.Control = CbUseThreads
+        AnchorSideTop.Control = CbDoubleBuffer
         AnchorSideTop.Side = asrCenter
         Left = 130
         Height = 25
-        Top = 78
+        Top = 103
         Width = 105
         BorderWidth = 2
         ButtonColorAutoSize = False
@@ -869,7 +869,20 @@ object MainForm: TMainForm
         ButtonColor = clWhite
         Caption = 'Map backgr.'
         Margin = 4
-        OnColorChanged = ColorButton1ColorChanged
+        OnColorChanged = clbBackColorColorChanged
+      end
+      object CbPreviewTiles: TCheckBox
+        AnchorSideLeft.Control = cbCyclicView
+        AnchorSideTop.Control = CbUseThreads
+        Left = 130
+        Height = 19
+        Top = 81
+        Width = 83
+        Caption = 'Preview tiles'
+        Checked = True
+        OnChange = CbPreviewTilesChange
+        State = cbChecked
+        TabOrder = 9
       end
     end
   end

@@ -37,9 +37,9 @@ object MainForm: TMainForm
     Height = 640
     Top = 0
     Width = 275
-    ActivePage = PgData
+    ActivePage = PgConfig
     Align = alRight
-    TabIndex = 0
+    TabIndex = 1
     TabOrder = 1
     object PgData: TTabSheet
       Caption = 'Data'
@@ -874,6 +874,36 @@ object MainForm: TMainForm
         OnChange = CbCyclicChange
         State = cbChecked
         TabOrder = 10
+      end
+      object CbPreviewTiles: TCheckBox
+        AnchorSideLeft.Control = CbCyclic
+        AnchorSideTop.Control = CbUseThreads
+        AnchorSideTop.Side = asrCenter
+        Left = 130
+        Height = 19
+        Top = 175
+        Width = 83
+        Caption = 'Preview tiles'
+        Checked = True
+        OnChange = CbPreviewTilesChange
+        State = cbChecked
+        TabOrder = 11
+      end
+      object clbBackColor: TColorButton
+        AnchorSideLeft.Control = CbPreviewTiles
+        AnchorSideTop.Control = CbDoubleBuffer
+        AnchorSideTop.Side = asrCenter
+        Left = 130
+        Height = 25
+        Top = 197
+        Width = 105
+        BorderWidth = 2
+        ButtonColorAutoSize = False
+        ButtonColorSize = 15
+        ButtonColor = clWhite
+        Caption = 'Map backgr.'
+        Margin = 4
+        OnColorChanged = clbBackColorColorChanged
       end
     end
   end

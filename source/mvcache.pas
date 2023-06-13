@@ -48,6 +48,7 @@ Type
      destructor Destroy; override;
      Procedure Add(MapProvider: TMapProvider; const TileId: TTileId; Stream: TMemoryStream);
      Procedure GetFromCache(MapProvider: TMapProvider; const TileId: TTileId; out img: TLazIntfImage);
+     function GetPreviewFromCache(MapProvider: TMapProvider; var TileId: TTileId; out ARect: TRect): boolean;
      function InCache(MapProvider: TMapProvider; const TileId: TTileId): Boolean;
 
      property UseDisk: Boolean read FUseDisk write FUseDisk;
@@ -345,6 +346,64 @@ begin
     if UseDisk then
        LoadFromDisk(FileName, img);
   end;
+end;
+
+{ When TileId is not yet in the cache, the function decreases zoom level and
+  returns the TileID of a tile which already is in the cache, and in ARect
+  the rectangle coordinates to get an upscaled preview of the originally
+  requested tile. The function returns true in this case.
+  If the requested tile already is in the cache, or no containing tile is found
+  the function returns false indicating that not preview image must be
+  generated. }
+function TPictureCache.GetPreviewFromCache(MapProvider: TMapProvider;
+  var TileId: TTileId; out ARect: TRect): boolean;
+var
+  ltid: TTileId;
+  xfrac, yfrac: Double;
+  lDeltaZoom: Integer;
+  w, px, py: Integer;
+begin
+  Result := false;
+  ARect := Rect(0, 0, 0, 0);
+
+  if (TileId.Z < 0) or
+     (TileId.X < 0) or
+     (TileId.Y < 0) then exit;
+
+  if InCache(MapProvider, TileID) then
+    exit;
+
+  if TileId.Z <= 0 then
+    exit; // The whole earth as a preview, is simply the earth
+
+  // The "preview" is the part of the containing tile that covers the location of the wanted tile
+  // Every decrement of Zoom reduces the tile area by 4 (half of x and y direction)
+  // So incrementing Z and dividing X and Y in the Id will lead us to the containing tile
+  // The fraction of the division points to the location of the preview
+  // e.g 0.5 = right or lower half of the tile, when divided by 2
+  ltid := TileId;
+  lDeltaZoom := 1;
+  w := TILE_SIZE;
+  repeat
+    w := w shr 1;
+    dec(ltid.Z);
+    lDeltaZoom := lDeltaZoom shl 1;
+    xfrac := TileId.X / lDeltaZoom; // xfrac, yfrac contains the tile number
+    yfrac := TileId.Y / lDeltaZoom;
+    ltid.X := Trunc(xfrac);
+    ltid.Y := Trunc(yfrac);
+    if InCache(MapProvider, ltid) then
+    begin // We found a tile in the cache that contains the preview
+      xfrac := xfrac - ltid.X; //xfrac and yfrac calculated for the position in the tile from the cache
+      yfrac := yfrac - ltid.Y;
+      px := Trunc(xfrac * TILE_SIZE); //x and y are the percentage of the tile width
+      py := Trunc(yfrac * TILE_SIZE);
+      ARect := Rect(px, py, px+w, py+w);
+      TileID := ltid;
+      Result := true;
+      exit;
+    end;
+  until (w <= 1) or (ltid.Z <= 0);
 end;
 
 function TPictureCache.InCache(MapProvider: TMapProvider;

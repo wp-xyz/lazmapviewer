@@ -39,6 +39,7 @@ Type
       FEngine: TMapViewerEngine;
       FBuiltinDrawingEngine: TMvCustomDrawingEngine;
       FDrawingEngine: TMvCustomDrawingEngine;
+      FDrawPreviewTiles: boolean;
       FActive: boolean;
       FGPSItems: TGPSObjectList;
       FPOIImage: TBitmap;
@@ -62,6 +63,7 @@ Type
       function GetCyclic: Boolean;
       function GetDownloadEngine: TMvCustomDownloadEngine;
       function GetDrawingEngine: TMvCustomDrawingEngine;
+      function GetDrawPreviewTiles: Boolean;
       function GetInactiveColor: TColor;
       function GetMapProvider: String;
       function GetOnCenterMove: TNotifyEvent;
@@ -82,6 +84,7 @@ Type
       procedure SetDefaultTrackWidth(AValue: Integer);
       procedure SetDownloadEngine(AValue: TMvCustomDownloadEngine);
       procedure SetDrawingEngine(AValue: TMvCustomDrawingEngine);
+      procedure SetDrawPreviewTiles(AValue: Boolean);
       procedure SetFont(AValue: TFont);
       procedure SetInactiveColor(AValue: TColor);
       procedure SetMapProvider(AValue: String);
@@ -102,6 +105,7 @@ Type
       AsyncInvalidate : boolean;
       procedure ActivateEngine;
       procedure DblClick; override;
+      procedure DoDrawStretchedTile(const TileId: TTileID; X, Y: Integer; TileImg: TLazIntfImage; const R: TRect);
       procedure DoDrawTile(const TileId: TTileId; X,Y: integer; TileImg: TLazIntfImage);
       procedure DoDrawTileInfo(const {%H-}TileID: TTileID; X,Y: Integer);
       function DoMouseWheel(Shift: TShiftState; WheelDelta: Integer;
@@ -148,6 +152,7 @@ Type
       property DefaultTrackWidth: Integer read FDefaultTrackWidth write SetDefaultTrackWidth default 1;
       property DownloadEngine: TMvCustomDownloadEngine read GetDownloadEngine write SetDownloadEngine;
       property DrawingEngine: TMvCustomDrawingEngine read GetDrawingEngine write SetDrawingEngine;
+      property DrawPreviewTiles: Boolean read GetDrawPreviewTiles write SetDrawPreviewTiles default true;
       property Font: TFont read FFont write SetFont stored IsFontStored;
       property Height default 150;
       property InactiveColor: TColor read GetInactiveColor write SetInactiveColor default clWhite;
@@ -343,6 +348,11 @@ begin
     Result := FDrawingEngine;
 end;
 
+function TMapView.GetDrawPreviewTiles: Boolean;
+begin
+  Result := Engine.DrawPreviewTiles;
+end;
+
 function TMapView.GetInactiveColor: TColor;
 begin
   Result := FPColorToTColor(Engine.BkColor);
@@ -452,6 +462,11 @@ begin
     FDrawingEngine.CreateBuffer(ClientWidth, ClientHeight);
   end;
   UpdateFont(nil);
+end;
+
+procedure TMapView.SetDrawPreviewTiles(AValue: Boolean);
+begin
+  Engine.DrawPreviewTiles := AValue;
 end;
 
 procedure TMapView.SetFont(AValue: TFont);
@@ -824,17 +839,27 @@ Begin
   AsyncInvalidate := false;
 end;
 
+procedure TMapView.DoDrawStretchedTile(const TileId: TTileId; X, Y: Integer;
+  TileImg: TLazIntfImage; const R: TRect);
+begin
+  if Assigned(TileImg) then
+    DrawingEngine.DrawScaledLazIntfImage(Rect(X, Y, X + TILE_SIZE, Y + TILE_SIZE), R, TileImg)
+  else
+    DrawingEngine.FillPixels(X, Y, X + TILE_SIZE, Y + TILE_SIZE, InactiveColor);
+
+  if FDebugTiles then
+    DoDrawTileInfo(TileID, X, Y);
+
+  DrawObjects(TileId, X, Y, X + TILE_SIZE, Y + TILE_SIZE);
+end;
+
 procedure TMapView.DoDrawTile(const TileId: TTileId; X, Y: integer;
   TileImg: TLazIntfImage);
 begin
-  if Assigned(TileImg) then begin
-    DrawingEngine.DrawLazIntfImage(X, Y, TileImg);
-  end
-  else begin
-    DrawingEngine.BrushColor := InactiveColor;
-    DrawingEngine.BrushStyle := bsSolid;
-    DrawingEngine.FillRect(X, Y, X + TILE_SIZE, Y + TILE_SIZE);
-  end;
+  if Assigned(TileImg) then
+    DrawingEngine.DrawLazIntfImage(X, Y, TileImg)
+  else
+    DrawingEngine.FillPixels(X, Y, X + TILE_SIZE, Y + TILE_SIZE, InactiveColor);
 
   if FDebugTiles then
     DoDrawTileInfo(TileID, X, Y);
@@ -885,6 +910,8 @@ begin
   FEngine.CachePath := 'cache/';
   FEngine.CacheOnDisk := true;
   FEngine.OnDrawTile := @DoDrawTile;
+  FEngine.OnDrawStretchedTile := @DoDrawStretchedTile;
+  FEngine.DrawPreviewTiles := True;
   FEngine.DrawTitleInGuiThread := false;
   FEngine.DownloadEngine := FBuiltinDownloadEngine;
   FEngine.ZoomToCursor := True;

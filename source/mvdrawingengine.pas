@@ -43,7 +43,9 @@ type
     procedure DrawBitmap(X, Y: Integer; ABitmap: TCustomBitmap;
       UseAlphaChannel: Boolean); virtual; abstract;
     procedure DrawLazIntfImage(X, Y: Integer; AImg: TLazIntfImage); virtual; abstract;
+    procedure DrawScaledLazIntfImage(DestRect, SrcRect: TRect; AImg: TLazIntfImage); virtual; abstract;
     procedure Ellipse(X1, Y1, X2, Y2: Integer); virtual; abstract;
+    procedure FillPixels(X1, Y1, X2, Y2: Integer; AColor: TColor); virtual; abstract;
     procedure FillRect(X1, Y1, X2, Y2: Integer); virtual; abstract;
     procedure Line(X1, Y1, X2, Y2: Integer); virtual; virtual; abstract;
     procedure PaintToCanvas(ACanvas: TCanvas); virtual; abstract;

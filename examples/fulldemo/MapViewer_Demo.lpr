@@ -5,8 +5,8 @@ program MapViewer_Demo;
 uses
   {$IFDEF UNIX}cthreads,{$ENDIF}
   Interfaces, // this includes the LCL widgetset
-  Forms, printer4lazarus, Main, gpslistform, globals, gpsptform
-  { you can add units after this };
+  Forms,
+  Main, gpslistform;
 
 {$R *.res}
 
