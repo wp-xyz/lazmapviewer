@@ -16,10 +16,34 @@ unit mvDrawingEngine;
 interface
 
 uses
-  Classes, SysUtils, Graphics, Types, IntfGraphics;
+  Classes, Contnrs, SysUtils, Graphics, Types, IntfGraphics;
+
+const
+  // Reserved layer names
+  OUTPUT_LAYER = 'output';  // layer into which the other layers are merged
+  MAP_LAYER = 'map';        // layer containing the main map
 
 type
+  EMvDrawingEngine = class(Exception);
+
+  TMvLayer = class
+  private
+    FName: String;
+    FIndex: Integer;
+  public
+    constructor Create(const AName: String); virtual;
+    property Name: String read FName;
+    property Index: Integer read FIndex;
+  end;
+  TMvLayerClass = class of TMvLayer;
+
   TMvCustomDrawingEngine = class(TComponent)
+  protected
+    FActiveLayer: TMvLayer;
+    FLayerList: TFPObjectList;
+    function GetLayerClass: TMvLayerClass; virtual; abstract;
+    procedure UpdateLayerIndices;
+
   protected
     function GetBrushColor: TColor; virtual; abstract;
     function GetBrushStyle: TBrushStyle; virtual; abstract;
@@ -39,6 +63,21 @@ type
     procedure SetPenWidth(AValue: Integer); virtual; abstract;
 
   public
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
+
+    // Layer management
+    function AddLayer(const AName: String): Integer;  virtual;
+    procedure DeleteLayer(const AName: String);
+    function GetActiveLayer: TMvLayer;
+    function GetLayer(AIndex: Integer): TMvLayer;
+    function GetLayer(const AName: String): TMvLayer;
+    function GetLayerCount: Integer;
+    function IndexOfLayer(const AName: String): Integer;
+    procedure MoveLayer(CurIndex, NewIndex: Integer);
+    procedure SetActiveLayer(const AName: String);
+
+    // Graphics operations
     procedure CreateBuffer(AWidth, AHeight: Integer); virtual; abstract;
     procedure DrawBitmap(X, Y: Integer; ABitmap: TCustomBitmap;
       UseAlphaChannel: Boolean); virtual; abstract;
@@ -68,6 +107,100 @@ type
 
 implementation
 
+{ TMvLayer }
+
+constructor TMvLayer.Create(const AName: String);
+begin
+  inherited Create;
+  FName := AName;
+end;
+
+
+{ TMvCustomDrawingEngine }
+
+constructor TMvCustomDrawingEngine.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  FLayerList := TFPObjectList.Create;
+end;
+
+destructor TMvCustomDrawingEngine.Destroy;
+begin
+  FLayerList.Free;
+  inherited;
+end;
+
+function TMvCustomDrawingEngine.AddLayer(const AName: String): Integer;
+var
+  layer: TMvLayer;
+begin
+  if IndexOfLayer(AName) > -1 then
+    raise EMvDrawingEngine.Create('Unique layer name required.');
+
+  layer := GetLayerClass.Create(AName);
+  Result := FLayerList.Add(layer);
+  layer.FIndex := Result;
+end;
+
+procedure TMvCustomDrawingEngine.DeleteLayer(const AName: String);
+var
+  idx: Integer;
+begin
+  idx := IndexOfLayer(AName);
+  if idx > 0 then  // do not delete layer 0, the basic map layer
+  begin
+    FLayerList.Delete(idx);
+    UpdateLayerIndices;
+  end;
+end;
+
+function TMvcustomDrawingEngine.GetActiveLayer: TMvLayer;
+begin
+  Result := FActiveLayer;
+end;
+
+function TMvCustomDrawingEngine.GetLayer(AIndex: Integer): TMvLayer;
+begin
+  Result := TMvLayer(FLayerList[AIndex]);
+end;
+
+function TMvCustomDrawingEngine.GetLayer(const AName: String): TMvLayer;
+var
+  idx: Integer;
+begin
+  idx := IndexOfLayer(AName);
+  if idx <> -1 then
+    Result := TMvLayer(FLayerList[idx])
+  else
+    Result := nil;
+end;
+
+function TMvCustomDrawingEngine.GetLayerCount: Integer;
+begin
+  Result := FLayerList.Count;
+end;
+
+function TMvCustomDrawingEngine.IndexOfLayer(const AName: String): Integer;
+begin
+  for Result := 0 to FLayerList.Count-1 do
+    if SameText(GetLayer(Result).Name, AName) then
+      exit;
+  Result := -1;
+end;
+
+procedure TMvCustomDrawingEngine.MoveLayer(CurIndex, NewIndex: Integer);
+begin
+  if (CurIndex = 0) or (NewIndex = 0) then
+    raise EMvDrawingEngine.Create('Cannot move map layer (index 0)');
+  FLayerList.Move(CurIndex, NewIndex);
+  UpdateLayerIndices;
+end;
+
+procedure TMvCustomDrawingEngine.SetActiveLayer(const AName: String);
+begin
+  FActiveLayer := GetLayer(AName);
+end;
+
 function TMvCustomDrawingEngine.TextHeight(const AText: String): Integer;
 begin
   Result := TextExtent(AText).CX;
@@ -76,6 +209,18 @@ end;
 function TMvCustomDrawingEngine.TextWidth(const AText: String): Integer;
 begin
   Result := TextExtent(AText).CY;
+end;
+
+procedure TMvCustomDrawingEngine.UpdateLayerIndices;
+var
+  i: Integer;
+  layer: TMvLayer;
+begin
+  for i := 0 to FLayerList.Count-1 do
+  begin
+    layer := GetLayer(i);
+    layer.FIndex := i;
+  end;
 end;
 
 
