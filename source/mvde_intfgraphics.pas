@@ -573,7 +573,7 @@ end;
 procedure TMvIntfGraphicsDrawingEngine.MergeLayers;
 var
   i: Integer;
-  output_layer, layer: TMvIntfGraphicsLayer;
+  output_layer, map_layer, layer: TMvIntfGraphicsLayer;
   output_canv: TLazCanvas;
   canv: TLazCanvas;
   buf: TLazIntfImage;
@@ -584,7 +584,10 @@ begin
     try
       output_layer := GetLayer(0);
       output_canv := output_layer.Canvas as TLazCanvas;
-      for i := 1 to FLayerList.Count-1 do
+      map_layer := GetLayer(1);
+      output_layer.Buffer.CopyPixels(map_layer.Buffer);
+
+      for i := 2 to FLayerList.Count-1 do
       begin
         LayerEnter(i);
         try
