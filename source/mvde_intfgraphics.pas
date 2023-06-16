@@ -584,8 +584,14 @@ begin
     try
       output_layer := GetLayer(0);
       output_canv := output_layer.Canvas as TLazCanvas;
-      map_layer := GetLayer(1);
-      output_layer.Buffer.CopyPixels(map_layer.Buffer);
+
+      LayerEnter(1);
+      try
+        map_layer := GetLayer(1);
+        output_layer.Buffer.CopyPixels(map_layer.Buffer);
+      finally
+        LayerLeave(1);
+      end;
 
       for i := 2 to FLayerList.Count-1 do
       begin
