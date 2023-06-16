@@ -39,14 +39,16 @@ type
     property FontStyle: TFontStyles read FFontStyle write FFontStyle;
   end;
 
+  { TMvIntfGraphicsDrawingEngine }
+
   TMvIntfGraphicsDrawingEngine = class(TMvCustomDrawingEngine)
   private
     procedure CreateLazIntfImageAndCanvas(out ABuffer: TLazIntfImage;
       out ACanvas: TFPCustomCanvas; AWidth, AHeight: Integer);
-    function GetActiveBuffer: TLazIntfImage; inline;
-    function GetActiveCanvas: TFpCustomCanvas; inline;
-    function GetActiveLayer: TMvIntfGraphicsLayer; inline;
-    function GetLayer(AIndex: Integer): TMvIntfGraphicsLayer; inline;
+    function GetLockActiveBuffer(var ALockedLayer : TMvIntfGraphicsLayer): TLazIntfImage;
+    function GetLockActiveCanvas(var ALockedLayer : TMvIntfGraphicsLayer): TFpCustomCanvas;
+    function GetLockActiveLayer: TMvIntfGraphicsLayer;
+    function GetLayer(AIndex: Integer): TMvIntfGraphicsLayer;
     procedure MergeLayers;
   protected
     function GetBrushColor: TColor; override;
@@ -186,12 +188,22 @@ var
   i: Integer;
   layer: TMvIntfGraphicsLayer;
 begin
-  for i := 0 to FLayerList.Count-1 do
-  begin
-    layer := TMvIntfGraphicsLayer(GetLayer(i));
-    layer.FCanvas.Free;
-    layer.FBuffer.Free;
-    CreateLazIntfImageAndCanvas(layer.FBuffer, layer.FCanvas, AWidth, AHeight);
+  LayerListEnter;
+  try
+    for i := 0 to FLayerList.Count-1 do
+    begin
+      layer := TMvIntfGraphicsLayer(GetLayer(i));
+      layer.LayerEnter;
+      try
+        layer.FCanvas.Free;
+        layer.FBuffer.Free;
+        CreateLazIntfImageAndCanvas(layer.FBuffer, layer.FCanvas, AWidth, AHeight);
+      finally
+        layer.LayerLeave;
+      end;
+    end;
+  finally
+    LayerListLeave;
   end;
 end;
 
@@ -225,46 +237,70 @@ var
   cimg, cbuf: TFPColor;
   alpha: Double;
   buf: TLazIntfImage;
+  layer: TMvIntfGraphicsLayer;
 begin
-  buf := GetActiveLayer.Buffer;
-
-  intfImg := ABitmap.CreateIntfImage;
+  { To make the CriticalSection of the List access as short as possible
+    the list is not blocked for the whole operation but only for the part of getting
+    the active layer and locking it.
+    To prevent a hole between the two try...finally blocks a variable is holding the state
+    of the LayerLock.
+  }
   try
-    if UseAlphaChannel then begin
-      for j := 0 to intfImg.Height - 1 do
-        if InRange(j + Y, 0, buf.Height - 1) then
-          for i := 0 to intfImg.Width - 1 do begin
-            cimg := intfImg.Colors[i, j];
-            alpha := cimg.Alpha / word($FFFF);
-            if InRange(i + X, 0, buf.Width-1) then begin
-              cbuf := buf.Colors[i + X, j + Y];
-              cbuf.Red := Round(alpha * cimg.Red + (1 - alpha) * cbuf.Red);
-              cbuf.Green := Round(alpha * cimg.Green + (1 - alpha) * cbuf.Green);
-              cbuf.Blue := Round(alpha * cimg.Blue + (1 - alpha) * cbuf.Blue);
-              buf.Colors[i + X, j + Y] := cbuf;
+    layer := GetLockActiveLayer;
+    buf := layer.Buffer;
+    intfImg := ABitmap.CreateIntfImage;
+    try
+      if UseAlphaChannel then
+      begin
+        for j := 0 to intfImg.Height - 1 do
+          if InRange(j + Y, 0, buf.Height - 1) then
+            for i := 0 to intfImg.Width - 1 do
+            begin
+              cimg := intfImg.Colors[i, j];
+              alpha := cimg.Alpha / word($FFFF);
+              if InRange(i + X, 0, buf.Width-1) then
+              begin
+                cbuf := buf.Colors[i + X, j + Y];
+                cbuf.Red := Round(alpha * cimg.Red + (1 - alpha) * cbuf.Red);
+                cbuf.Green := Round(alpha * cimg.Green + (1 - alpha) * cbuf.Green);
+                cbuf.Blue := Round(alpha * cimg.Blue + (1 - alpha) * cbuf.Blue);
+                buf.Colors[i + X, j + Y] := cbuf;
+              end;
             end;
-          end;
-    end else
-      for j := 0 to intfImg.Height - 1 do
-        if InRange(j + Y, 0, buf.Height - 1) then
-          for i := 0 to intfImg.Width - 1 do
-            if InRange(i + x, 0, buf.Width-1) then
-              buf.Colors[i + X, j + Y] := intfImg.Colors[i, j];
+      end
+      else
+        for j := 0 to intfImg.Height - 1 do
+          if InRange(j + Y, 0, buf.Height - 1) then
+            for i := 0 to intfImg.Width - 1 do
+              if InRange(i + x, 0, buf.Width-1) then
+                buf.Colors[i + X, j + Y] := intfImg.Colors[i, j];
+    finally
+      intfimg.Free;
+    end;
   finally
-    intfimg.Free;
+    layer.LayerLeave;
   end;
 end;
 
 { Draws the specified LazIntfImage on the active buffer layer }
 procedure TMvIntfGraphicsDrawingEngine.DrawLazIntfImage(X, Y: Integer;
   AImg: TLazIntfImage);
+var
+  layer: TMvIntfGraphicsLayer;
+  buf: TLazIntfImage;
 begin
-  {$IF Lcl_FullVersion < 1090000}
-  { Workaround for //http://mantis.freepascal.org/view.php?id=27144 }
-  CopyPixels(AImg, GetActiveBuffer, X, Y);
-  {$ELSE}
-  GetActiveBuffer.CopyPixels(AImg, X, Y);
-  {$IFEND}
+  try
+    layer := GetLockActiveLayer;
+    buf := layer.Buffer;
+    {$IF Lcl_FullVersion < 1090000}
+    { Workaround for //http://mantis.freepascal.org/view.php?id=27144 }
+    CopyPixels(AImg, buf, X, Y);
+    {$ELSE}
+    buf.CopyPixels(AImg, X, Y);
+    {$IFEND}
+  finally
+    layer.LayerLeave;
+  end;
 end;
 
 { Scales the rectangle SrcRect of the specified source image (ASrcImg) such
@@ -276,41 +312,52 @@ var
   img: TLazIntfImage;
   w, h, x, y: Integer;
   canv: TFPCustomCanvas;
+  layer: TMvIntfGraphicsLayer;
 begin
-  canv := GetActiveCanvas;
-
-  if canv = nil then
-    exit;
-
-  w := SrcRect.Right - SrcRect.Left;
-  h := SrcRect.Bottom - SrcRect.Top;
-
-  img := TLazIntfImage.Create(0, 0);
+  layer := Nil;
+  canv := GetLockActiveCanvas(layer);
   try
-    img.DataDescription := ASrcImg.DataDescription;
-    img.SetSize(w, h);
-    for y := 0 to h-1 do
-      for x := 0 to w-1 do
-        img.Colors[x, y] := ASrcImg.Colors[SrcRect.Left + x, SrcRect.Top + y];;
-    canv.Interpolation := TFPSharpInterpolation.Create;
+    if not Assigned(canv) then
+      exit;
+
+    w := SrcRect.Right - SrcRect.Left;
+    h := SrcRect.Bottom - SrcRect.Top;
+
+    img := TLazIntfImage.Create(0, 0);
     try
-      canv.StretchDraw(DestRect.Left, DestRect.Top, DestRect.Width, DestRect.Height, img);
+      img.DataDescription := ASrcImg.DataDescription;
+      img.SetSize(w, h);
+      for y := 0 to h-1 do
+        for x := 0 to w-1 do
+          img.Colors[x, y] := ASrcImg.Colors[SrcRect.Left + x, SrcRect.Top + y];;
+      canv.Interpolation := TFPSharpInterpolation.Create;
+      try
+        canv.StretchDraw(DestRect.Left, DestRect.Top, DestRect.Width, DestRect.Height, img);
+      finally
+        canv.Interpolation.Free;
+        canv.Interpolation := nil;
+      end;
     finally
-      canv.Interpolation.Free;
-      canv.Interpolation := nil;
+      img.Free;
     end;
   finally
-    img.Free;
+    layer.LayerLeave;
   end;
 end;
 
 procedure TMvIntfGraphicsDrawingEngine.Ellipse(X1, Y1, X2, Y2: Integer);
 var
   canv: TFPCustomCanvas;
+  layer: TMvIntfGraphicsLayer;
 begin
-  canv := GetActiveCanvas;
-  if canv <> nil then
-    canv.Ellipse(X1,Y1, X2, Y2);
+  layer := Nil;
+  canv := GetLockActiveCanvas(layer);
+  try
+    if Assigned(canv) then
+      canv.Ellipse(X1,Y1, X2, Y2);
+  finally
+    layer.LayerLeave;
+  end;
 end;
 
 procedure TMvIntfGraphicsDrawingEngine.FillPixels(X1, Y1, X2, Y2: Integer;
@@ -319,88 +366,150 @@ var
   buf: TLazIntfImage;
   c: TFPColor;
   x, y: Integer;
+  layer: TMvIntfGraphicsLayer;
 begin
-  buf := GetActiveBuffer;
+  layer := Nil;
+  buf := GetLockActiveBuffer(layer);
+  try
+    if (X1 >= buf.Width) or (X2 < 0) or (Y1 >= buf.Height) or (Y2 < 0) then
+      exit;
 
-  if (X1 >= buf.Width) or (X2 < 0) or (Y1 >= buf.Height) or (Y2 < 0) then
-    exit;
+    if X1 < 0 then X1 := 0;
+    if Y1 < 0 then Y1 := 0;
+    if X2 >= buf.Width then X2 := buf.Width - 1;
+    if Y2 >= buf.Height then Y2 := buf.Height - 1;
 
-  if X1 < 0 then X1 := 0;
-  if Y1 < 0 then Y1 := 0;
-  if X2 >= buf.Width then X2 := buf.Width - 1;
-  if Y2 >= buf.Height then Y2 := buf.Height - 1;
-
-  c := TColorToFPColor(ColorToRGB(AColor));
-  for y := Y1 to Y2 do
-    for x := X1 to X2 do
-      buf.Colors[x, y] := c;
+    c := TColorToFPColor(ColorToRGB(AColor));
+    for y := Y1 to Y2 do
+      for x := X1 to X2 do
+        buf.Colors[x, y] := c;
+  finally
+    layer.LayerLeave;
+  end;
 end;
 
 procedure TMvIntfGraphicsDrawingEngine.FillRect(X1, Y1, X2, Y2: Integer);
 var
   canv: TFPCustomCanvas;
+  layer: TMvIntfGraphicsLayer;
 begin
-  canv := GetActiveCanvas;
-  if canv <> nil then
-    canv.FillRect(X1,Y1, X2, Y2);
+  layer := Nil;
+  canv := GetLockActiveCanvas(layer);
+  try
+    if Assigned(canv) then
+      canv.FillRect(X1,Y1, X2, Y2);
+  finally
+    layer.LayerLeave;
+  end;
 end;
 
-function TMvIntfGraphicsDrawingEngine.GetActiveBuffer: TLazIntfImage;
+function TMvIntfGraphicsDrawingEngine.GetLockActiveBuffer(
+  var ALockedLayer: TMvIntfGraphicsLayer): TLazIntfImage;
 begin
-  Result := GetActiveLayer.Buffer;
+  ALockedLayer := GetLockActiveLayer;
+  Result := ALockedLayer.Buffer;
 end;
 
-function TMvIntfGraphicsDrawingEngine.GetActiveCanvas: TFPCustomCanvas;
+function TMvIntfGraphicsDrawingEngine.GetLockActiveCanvas(
+  var ALockedLayer: TMvIntfGraphicsLayer): TFpCustomCanvas;
 begin
-  Result := GetActiveLayer.Canvas;
+  ALockedLayer := GetLockActiveLayer;
+  Result := ALockedLayer.Canvas;
 end;
 
-function TMvIntfGraphicsDrawingEngine.GetActiveLayer: TMvIntfGraphicsLayer;
+function TMvIntfGraphicsDrawingEngine.GetLockActiveLayer: TMvIntfGraphicsLayer;
 begin
-  Result := TMvIntfGraphicsLayer(inherited);
+  LayerListEnter;
+  try
+    Result := TMvIntfGraphicsLayer(GetActiveLayer);
+    Result.LayerEnter;
+  finally
+    LayerListLeave;
+  end;
 end;
 
 function TMvIntfGraphicsDrawingEngine.GetBrushColor: TColor;
 var
   canv: TFPCustomCanvas;
+  layer: TMvIntfGraphicsLayer;
 begin
-  canv := GetActiveCanvas;
-  if canv <> nil then
-    Result := FPColorToTColor(canv.Brush.FPColor)
-  else
-    Result := 0;
+  layer := Nil;
+  canv := GetLockActiveCanvas(layer);
+  try
+    if Assigned(canv) then
+      Result := FPColorToTColor(canv.Brush.FPColor)
+    else
+      Result := 0;
+  finally
+    layer.LayerLeave;
+  end;
 end;
 
 function TMvIntfGraphicsDrawingEngine.GetBrushStyle: TBrushStyle;
 var
   canv: TFPCustomCanvas;
+  layer: TMvIntfGraphicsLayer;
 begin
-  canv := GetActiveCanvas;
-  if canv <> nil then
-    Result := canv.Brush.Style
-  else
-    Result := bsSolid;
+  layer := Nil;
+  canv := GetLockActiveCanvas(layer);
+  try
+    if Assigned(canv) then
+      Result := canv.Brush.Style
+    else
+      Result := bsSolid;
+  finally
+    layer.LayerLeave;
+  end;
 end;
 
 function TMvIntfGraphicsDrawingEngine.GetFontColor: TColor;
+var
+  layer: TMvIntfGraphicsLayer;
 begin
-  Result := GetActiveLayer.FontColor
+  try
+    layer := GetLockActiveLayer;
+    Result := layer.FontColor;
+  finally
+    layer.LayerLeave;
+  end;
 end;
 
 function TMvIntfGraphicsDrawingEngine.GetFontName: String;
+var
+  layer: TMvIntfGraphicsLayer;
 begin
-  Result := GetActiveLayer.FontName;
+  try
+    layer := GetLockActiveLayer;
+    Result := layer.FontName;
+  finally
+    layer.LayerLeave;
+  end;
 end;
 
 function TMvIntfGraphicsDrawingEngine.GetFontSize: Integer;
+var
+  layer: TMvIntfGraphicsLayer;
 begin
-  Result := GetActiveLayer.FontSize;
+  try
+    layer := GetLockActiveLayer;
+    Result := layer.FontSize;
+  finally
+    layer.LayerLeave;
+  end;
 end;
 
 function TMvIntfGraphicsDrawingEngine.GetFontStyle: TFontStyles;
+var
+  layer: TMvIntfGraphicsLayer;
 begin
-  Result := GetActiveLayer.FontStyle;
+  try
+    layer := GetLockActiveLayer;
+    Result := layer.FontStyle;
+  finally
+    layer.LayerLeave;
+  end;
 end;
+
 
 function TMvIntfGraphicsDrawingEngine.GetLayer(AIndex: Integer): TMvIntfGraphicsLayer;
 begin
@@ -415,32 +524,50 @@ end;
 function TMvIntfGraphicsDrawingEngine.GetPenColor: TColor;
 var
   canv: TFPCustomCanvas;
+  layer: TMvIntfGraphicsLayer;
 begin
-  canv := GetActiveCanvas;
-  if canv <> nil then
-    Result := FPColorToTColor(canv.Pen.FPColor)
-  else
-    Result := 0;
+  layer := Nil;
+  canv := GetLockActiveCanvas(layer);
+  try
+    if Assigned(canv) then
+      Result := FPColorToTColor(canv.Pen.FPColor)
+    else
+      Result := 0;
+  finally
+    layer.LayerLeave;
+  end;
 end;
 
 function TMvIntfGraphicsDrawingEngine.GetPenWidth: Integer;
 var
   canv: TFPCustomCanvas;
+  layer: TMvIntfGraphicsLayer;
 begin
-  canv := GetActiveCanvas;
-  if canv <> nil then
-    Result := canv.Pen.Width
-  else
-    Result := 0;
+  layer := Nil;
+  canv := GetLockActiveCanvas(layer);
+  try
+    if Assigned(canv) then
+      Result := canv.Pen.Width
+    else
+      Result := 0;
+  finally
+    layer.LayerLeave;
+  end;
 end;
 
 procedure TMvIntfGraphicsDrawingEngine.Line(X1, Y1, X2, Y2: Integer);
 var
   canv: TFPCustomCanvas;
+  layer: TMvIntfGraphicsLayer;
 begin
-  canv := GetActiveCanvas;
-  if canv <> nil then
-    canv.Line(X1, Y1, X2, Y2);
+  layer := Nil;
+  canv := GetLockActiveCanvas(layer);
+  try
+    if Assigned(canv) then
+      canv.Line(X1, Y1, X2, Y2);
+  finally
+    layer.LayerLeave;
+  end;
 end;
 
 procedure TMvIntfGraphicsDrawingEngine.MergeLayers;
@@ -451,14 +578,29 @@ var
   canv: TLazCanvas;
   buf: TLazIntfImage;
 begin
-  output_layer := GetLayer(0);
-  output_canv := output_layer.Canvas as TLazCanvas;
-  for i := 1 to FLayerList.Count-1 do
-  begin
-    layer := GetLayer(i);
-    canv := layer.Canvas as TLazCanvas;
-    buf := layer.Buffer;
-    output_canv.AlphaBlend(canv, 0, 0, 0, 0, buf.Width, buf.Height);
+  LayerListEnter;
+  try
+    LayerEnter(0);
+    try
+      output_layer := GetLayer(0);
+      output_canv := output_layer.Canvas as TLazCanvas;
+      for i := 1 to FLayerList.Count-1 do
+      begin
+        LayerEnter(i);
+        try
+          layer := GetLayer(i);
+          canv := layer.Canvas as TLazCanvas;
+          buf := layer.Buffer;
+          output_canv.AlphaBlend(canv, 0, 0, 0, 0, buf.Width, buf.Height);
+        finally
+          LayerLeave(i);
+        end;
+      end;
+    finally
+      LayerLeave(0);
+    end;
+  finally
+    LayerListLeave;
   end;
 end;
 
@@ -468,9 +610,10 @@ var
   bmp: TBitmap;
   output_buf: TLazIntfImage;
 begin
-  if ACanvas <> nil then
-  begin
-    MergeLayers;
+  if not Assigned(ACanvas) then Exit;
+  MergeLayers;
+  LayerEnter(0);
+  try
     output_buf := GetLayer(0).Buffer;
     bmp := TBitmap.Create;
     try
@@ -481,86 +624,151 @@ begin
     finally
       bmp.Free;
     end;
+  finally
+    Layerleave(0);
   end;
 end;
 
 procedure TMvIntfGraphicsDrawingEngine.Rectangle(X1, Y1, X2, Y2: Integer);
 var
   canv: TFPCustomCanvas;
+  layer: TMvIntfGraphicsLayer;
 begin
-  canv := GetActiveCanvas;
-  if canv <> nil then
-    canv.Rectangle(X1,Y1, X2, Y2);
+  layer := Nil;
+  canv := GetLockActiveCanvas(layer);
+  try
+    if Assigned(canv) then
+      canv.Rectangle(X1,Y1, X2, Y2);
+  finally
+    layer.LayerLeave;
+  end;
 end;
 
 // !!!!!!!!!!!!! TO DO --- merge all layers
 function TMvIntfGraphicsDrawingEngine.SaveToImage(AClass: TRasterImageClass): TRasterImage;
 var
   buf: TLazIntfImage;
+  layer: TMvIntfGraphicsLayer;
 begin
-  buf := GetActiveBuffer;
-
-  Result := AClass.Create;
-  Result.Width := buf.Width;
-  Result.Height := buf.Height;
-  Result.Canvas.FillRect(0, 0, Result.Width, Result.Height);
-  Result.LoadFromIntfImage(buf);
+  layer := Nil;
+  buf := GetLockActiveBuffer(layer);
+  try
+    Result := AClass.Create;
+    Result.Width := buf.Width;
+    Result.Height := buf.Height;
+    Result.Canvas.FillRect(0, 0, Result.Width, Result.Height);
+    Result.LoadFromIntfImage(buf);
+  finally
+    layer.LayerLeave;
+  end;
 end;
 
 procedure TMvIntfGraphicsDrawingEngine.SetBrushColor(AValue: TColor);
 var
   canv: TFPCustomCanvas;
+  layer: TMvIntfGraphicsLayer;
 begin
-  canv := GetActiveCanvas;
-  if canv <> nil then
-    canv.Brush.FPColor := TColorToFPColor(AValue);
+  layer := Nil;
+  canv := GetLockActiveCanvas(layer);
+  try
+    if Assigned(canv) then
+      canv.Brush.FPColor := TColorToFPColor(AValue);
+  finally
+    layer.LayerLeave;
+  end;
 end;
 
 procedure TMvIntfGraphicsDrawingEngine.SetBrushStyle(AValue: TBrushStyle);
 var
   canv: TFPCustomCanvas;
+  layer: TMvIntfGraphicsLayer;
 begin
-  canv := GetActiveCanvas;
-  if canv <> nil then
-    canv.Brush.Style := AValue;
+  layer := Nil;
+  canv := GetLockActiveCanvas(layer);
+  try
+    if Assigned(canv) then
+      canv.Brush.Style := AValue;
+  finally
+    layer.LayerLeave;
+  end;
 end;
 
 procedure TMvIntfGraphicsDrawingEngine.SetFontColor(AValue: TColor);
+var
+  layer: TMvIntfGraphicsLayer;
 begin
-  GetActiveLayer.FontColor := AValue;
+  try
+    layer := GetLockActiveLayer;
+    layer.FontColor := AValue;
+  finally
+    layer.LayerLeave;
+  end;
 end;
 
 procedure TMvIntfGraphicsDrawingEngine.SetFontName(AValue: String);
+var
+  layer: TMvIntfGraphicsLayer;
 begin
-  GetActiveLayer.FontName := AValue;
+  try
+    layer := GetLockActiveLayer;
+    layer.FontName := AValue;
+  finally
+    layer.LayerLeave;
+  end;
 end;
 
 procedure TMvIntfGraphicsDrawingEngine.SetFontSize(AValue: Integer);
+var
+  layer: TMvIntfGraphicsLayer;
 begin
-  GetActiveLayer.FontSize := AValue;
+  try
+    layer := GetLockActiveLayer;
+    layer.FontSize := AValue;
+  finally
+    layer.LayerLeave;
+  end;
 end;
 
 procedure TMvIntfGraphicsDrawingEngine.SetFontStyle(AValue: TFontStyles);
+var
+  layer: TMvIntfGraphicsLayer;
 begin
-  GetActiveLayer.FontStyle := AValue;
+  try
+    layer := GetLockActiveLayer;
+    layer.FontStyle := AValue;
+  finally
+    layer.LayerLeave;
+  end;
 end;
 
 procedure TMvIntfGraphicsDrawingEngine.SetPenColor(AValue: TColor);
 var
   canv: TFPCustomCanvas;
+  layer: TMvIntfGraphicsLayer;
 begin
-  canv := GetActiveCanvas;
-  if canv <> nil then
-    canv.Pen.FPColor := TColorToFPColor(AValue);
+  layer := Nil;
+  canv := GetLockActiveCanvas(layer);
+  try
+    if Assigned(canv) then
+      canv.Pen.FPColor := TColorToFPColor(AValue);
+  finally
+    layer.LayerLeave;
+  end;
 end;
 
 procedure TMvIntfGraphicsDrawingEngine.SetPenWidth(AValue: Integer);
 var
   canv: TFPCustomCanvas;
+  layer: TMvIntfGraphicsLayer;
 begin
-  canv := GetActiveCanvas;
-  if canv <> nil then
-    canv.Pen.Width := AValue;
+  layer := Nil;
+  canv := GetLockActiveCanvas(layer);
+  try
+    if Assigned(canv) then
+      canv.Pen.Width := AValue;
+  finally
+    layer.LayerLeave;
+  end;
 end;
 
 function TMvIntfGraphicsDrawingEngine.TextExtent(const AText: String): TSize;
@@ -568,14 +776,24 @@ var
   layer: TMvIntfGraphicsLayer;
   bmp: TBitmap;
   R: TRect;
+  fn : String;
+  fsz : Integer;
+  fst : TFontStyles;
 begin
-  layer := GetActiveLayer;
+  try
+    layer := GetLockActiveLayer;
+    fn := layer.FontName;
+    fsz := layer.FontSize;
+    fst := layer.FontStyle;
+  finally
+    layer.LayerLeave;
+  end;
   bmp := TBitmap.Create;
   try
     bmp.SetSize(1, 1);
-    bmp.Canvas.Font.Name := layer.FontName;
-    bmp.Canvas.Font.Size := layer.FontSize;
-    bmp.Canvas.Font.Style := layer.FontStyle;
+    bmp.Canvas.Font.Name := fn;
+    bmp.Canvas.Font.Size := fsz;
+    bmp.Canvas.Font.Style := fst;
     R := Rect(0, 0, DEFAULT_POI_TEXT_WIDTH, 0);
     DrawText(bmp.Canvas.Handle, PChar(AText), Length(AText), R, DT_WORDBREAK + DT_CALCRECT);
     Result := Size(R.Width, R.Height);
@@ -599,68 +817,73 @@ var
   txtFlags: Integer = DT_CENTER + DT_WORDBREAK;
   layer: TMvIntfGraphicsLayer;
 begin
-  layer := GetActiveLayer;
   if (AText = '') then
     exit;
-
-  bmp := TBitmap.Create;
+  layer := GetLockActiveLayer;
   try
-    bmp.PixelFormat := pf32Bit;
-    bmp.SetSize(1, 1);
-    bmp.Canvas.Font.Name := layer.FontName;
-    bmp.Canvas.Font.Size := layer.FontSize;
-    bmp.Canvas.Font.Style := layer.FontStyle;
-    bmp.Canvas.Font.Color := layer.FontColor;
-    ex := TextExtent(AText);
-    R := Rect(0, 0, ex.CX, ex.CY);
-    bmp.SetSize(ex.CX, ex.CY);
-    if GetBrushStyle <> bsClear then begin
-      bmp.Canvas.Brush.Color := GetBrushColor;
-      bmp.Canvas.FillRect(0, 0, bmp.Width, bmp.Height);
-      DrawText(bmp.Canvas.Handle, PChar(AText), Length(AText), R, txtFlags);
-      DrawBitmap(X, Y, bmp, false);
-    end else
-    begin
-      if layer.FontColor = clWhite then
-        bmp.Canvas.Brush.Color := clBlack
+    bmp := TBitmap.Create;
+    try
+      bmp.PixelFormat := pf32Bit;
+      bmp.SetSize(1, 1);
+      bmp.Canvas.Font.Name := layer.FontName;
+      bmp.Canvas.Font.Size := layer.FontSize;
+      bmp.Canvas.Font.Style := layer.FontStyle;
+      bmp.Canvas.Font.Color := layer.FontColor;
+      ex := TextExtent(AText);
+      R := Rect(0, 0, ex.CX, ex.CY);
+      bmp.SetSize(ex.CX, ex.CY);
+      if GetBrushStyle <> bsClear then
+      begin
+        bmp.Canvas.Brush.Color := GetBrushColor;
+        bmp.Canvas.FillRect(0, 0, bmp.Width, bmp.Height);
+        DrawText(bmp.Canvas.Handle, PChar(AText), Length(AText), R, txtFlags);
+        DrawBitmap(X, Y, bmp, false);
+      end
       else
-        bmp.Canvas.Brush.Color := clWhite;
-      bmp.Canvas.FillRect(R); //0, 0, bmp.Width, bmp.Height);
-      DrawText(bmp.Canvas.Handle, PChar(AText), Length(AText), R, txtFlags);
-//      bmp.Canvas.TextOut(0, 0, AText);
+      begin
+        if layer.FontColor = clWhite then
+          bmp.Canvas.Brush.Color := clBlack
+        else
+          bmp.Canvas.Brush.Color := clWhite;
+        bmp.Canvas.FillRect(R); //0, 0, bmp.Width, bmp.Height);
+        DrawText(bmp.Canvas.Handle, PChar(AText), Length(AText), R, txtFlags);
+  //      bmp.Canvas.TextOut(0, 0, AText);
 
-      img := bmp.CreateIntfImage;
-      try
-        fc := TColorToFPColor(bmp.Canvas.Font.Color);
-        intens0 := Int64(fc.Red) + fc.Green + fc.Blue;
-        for j := 0 to img.Height - 1 do
-          for i := 0 to img.Width - 1 do begin
-            c := bmp.Canvas.Pixels[i, j];
-            tc := TColorToFPColor(c);
-            if c = bmp.Canvas.Brush.Color then
-              tc.Alpha := alphaTransparent
-            else if c = layer.FontColor then
-              tc.Alpha := alphaOpaque
-            else begin
-              intens := Int64(tc.Red) + tc.Green + tc.Blue;
-              if intens0 = 0 then
-                alpha := (3 * alphaopaque - intens) / (3 * alphaOpaque - intens0)
-              else
-                alpha := intens / intens0;
-              tc.Alpha := round(alphaOpaque * alpha);
+        img := bmp.CreateIntfImage;
+        try
+          fc := TColorToFPColor(bmp.Canvas.Font.Color);
+          intens0 := Int64(fc.Red) + fc.Green + fc.Blue;
+          for j := 0 to img.Height - 1 do
+            for i := 0 to img.Width - 1 do begin
+              c := bmp.Canvas.Pixels[i, j];
+              tc := TColorToFPColor(c);
+              if c = bmp.Canvas.Brush.Color then
+                tc.Alpha := alphaTransparent
+              else if c = layer.FontColor then
+                tc.Alpha := alphaOpaque
+              else begin
+                intens := Int64(tc.Red) + tc.Green + tc.Blue;
+                if intens0 = 0 then
+                  alpha := (3 * alphaopaque - intens) / (3 * alphaOpaque - intens0)
+                else
+                  alpha := intens / intens0;
+                tc.Alpha := round(alphaOpaque * alpha);
+              end;
+              img.Colors[i, j] := tc;
             end;
-            img.Colors[i, j] := tc;
-          end;
-        img.CreateBitmaps(hb, hm);
-        bmp.Handle := hb;
-        bmp.MaskHandle := hm;
-        DrawBitmap(X, Y, bmp, true);
-      finally
-        img.Free;
+          img.CreateBitmaps(hb, hm);
+          bmp.Handle := hb;
+          bmp.MaskHandle := hm;
+          DrawBitmap(X, Y, bmp, true);
+        finally
+          img.Free;
+        end;
       end;
+    finally
+      bmp.Free;
     end;
   finally
-    bmp.Free;
+    layer.LayerLeave;
   end;
 end;
 

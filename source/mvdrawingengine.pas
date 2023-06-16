@@ -16,7 +16,7 @@ unit mvDrawingEngine;
 interface
 
 uses
-  Classes, Contnrs, SysUtils, Graphics, Types, IntfGraphics;
+  Classes, Contnrs, SysUtils, Graphics, Types, IntfGraphics, syncobjs;
 
 const
   // Reserved layer names
@@ -26,21 +26,32 @@ const
 type
   EMvDrawingEngine = class(Exception);
 
+  { TMvLayer }
+
   TMvLayer = class
   private
     FName: String;
     FIndex: Integer;
+    FLock : TCriticalSection;
+    FLockThreadID : TThreadID;
   public
-    constructor Create(const AName: String); virtual;
     property Name: String read FName;
     property Index: Integer read FIndex;
+    property LockThreadID : TThreadID read FLockThreadID;
+    procedure LayerEnter;
+    procedure LayerLeave;
+    constructor Create(const AName: String); virtual;
+    destructor Destroy;override;
   end;
   TMvLayerClass = class of TMvLayer;
+
+  { TMvCustomDrawingEngine }
 
   TMvCustomDrawingEngine = class(TComponent)
   protected
     FActiveLayer: TMvLayer;
     FLayerList: TFPObjectList;
+    FLayerListLock : TCriticalSection;
     function GetLayerClass: TMvLayerClass; virtual; abstract;
     procedure UpdateLayerIndices;
 
@@ -76,6 +87,22 @@ type
     function IndexOfLayer(const AName: String): Integer;
     procedure MoveLayer(CurIndex, NewIndex: Integer);
     procedure SetActiveLayer(const AName: String);
+    {LayerListEnter grants an exclusive access to the layer list (and block other threads) until
+      LayerListLeave is called. Always(!) combine the calls with a try...finally-block}
+    procedure LayerListEnter;
+    {LayerListLeave terminates the exclusive access to the layer list of the calling thread,
+      A prior call to LayerListEnter is mandatory!}
+    procedure LayerListLeave;
+    {LayerEnter grants an exclusive access to the layer (and blocks other threads) until
+      LayerLeave is called. Always(!) combine the calls with a try...finally-block}
+    procedure LayerEnter(AIndex: Integer);
+    function LayerEnter(const ALayerName : String) : Boolean;
+    {LayerLeave terminates the exclusive access to the layer of the calling thread,
+      A prior call to LayerEnter is mandatory!}
+    procedure LayerLeave(AIndex : Integer);
+    procedure LayerLeave(const ALayerName : String);
+    procedure LayerEnterAll;
+    procedure LayerLeaveAll;
 
     // Graphics operations
     procedure CreateBuffer(AWidth, AHeight: Integer); virtual; abstract;
@@ -109,10 +136,34 @@ implementation
 
 { TMvLayer }
 
+procedure TMvLayer.LayerEnter;
+var
+  ti : Integer;
+begin
+  ti := GetThreadID();
+  if ti = FLockThreadID then Exit; // This Thread locks the Layer already, so good bye
+  FLock.Enter;  // Lock the layer
+  FLockThreadID := ti; // remember who is locking the layer.
+end;
+
+procedure TMvLayer.LayerLeave;
+begin
+  if FLockThreadID = 0 then Exit; // The lock is free, so leave should not be called
+  FLockThreadID := 0; //After this assignment different threads may goto FLock.Enter
+  FLock.Leave; //But since we are leaving here, there will be no longer blocking
+end;
+
 constructor TMvLayer.Create(const AName: String);
 begin
   inherited Create;
+  FLock := TCriticalSection.Create;
   FName := AName;
+end;
+
+destructor TMvLayer.Destroy;
+begin
+  FLock.Free;
+  inherited Destroy;
 end;
 
 
@@ -121,12 +172,36 @@ end;
 constructor TMvCustomDrawingEngine.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+  FLayerListLock := TCriticalSection.Create;
   FLayerList := TFPObjectList.Create;
 end;
 
 destructor TMvCustomDrawingEngine.Destroy;
+var
+  i : Integer;
+  ly : TMvLayer;
 begin
+  LayerListEnter;
+  try
+    for i := FLayerList.Count-1 downto 0 do
+    begin
+      ly := GetLayer(i);
+      if Assigned(ly) then
+      begin
+        ly.LayerEnter;
+        try
+          FLayerList.Extract(ly);
+        finally
+          ly.LayerLeave;
+          ly.Free;
+        end;
+      end;
+    end;
+  finally
+    LayerListLeave;
+  end;
   FLayerList.Free;
+  FLayerListLock.Free;
   inherited;
 end;
 
@@ -134,57 +209,101 @@ function TMvCustomDrawingEngine.AddLayer(const AName: String): Integer;
 var
   layer: TMvLayer;
 begin
-  if IndexOfLayer(AName) > -1 then
-    raise EMvDrawingEngine.Create('Unique layer name required.');
+  LayerListEnter;
+  try
+    if IndexOfLayer(AName) > -1 then
+      raise EMvDrawingEngine.Create('Unique layer name required.');
 
-  layer := GetLayerClass.Create(AName);
-  Result := FLayerList.Add(layer);
-  layer.FIndex := Result;
+    layer := GetLayerClass.Create(AName);
+    Result := FLayerList.Add(layer);
+    layer.FIndex := Result;
+  finally
+    LayerListLeave;
+  end;
 end;
 
 procedure TMvCustomDrawingEngine.DeleteLayer(const AName: String);
 var
   idx: Integer;
+  ly : TMvLayer;
 begin
-  idx := IndexOfLayer(AName);
-  if idx > 0 then  // do not delete layer 0, the basic map layer
-  begin
-    FLayerList.Delete(idx);
-    UpdateLayerIndices;
+  LayerListEnter;
+  try
+    idx := IndexOfLayer(AName);
+    if idx > 0 then  // do not delete layer 0, the basic map layer
+    begin
+      ly := GetLayer(idx);
+      if Assigned(ly) then
+      begin
+        ly.LayerEnter;
+        try
+          if FActiveLayer = ly then
+            FActiveLayer := GetLayer(0); // Activae Default Layer
+          //FLayerList.Delete(idx);
+          FLayerList.Extract(ly);
+        finally
+          ly.LayerLeave;
+          ly.Free;
+        end;
+      end;
+      UpdateLayerIndices;
+    end;
+  finally
+    LayerListLeave;
   end;
 end;
 
-function TMvcustomDrawingEngine.GetActiveLayer: TMvLayer;
+function TMvCustomDrawingEngine.GetActiveLayer: TMvLayer;
 begin
   Result := FActiveLayer;
 end;
 
 function TMvCustomDrawingEngine.GetLayer(AIndex: Integer): TMvLayer;
 begin
-  Result := TMvLayer(FLayerList[AIndex]);
+  LayerListEnter;
+  try
+    Result := TMvLayer(FLayerList[AIndex]);
+  finally
+    LayerListLeave;
+  end;
 end;
 
 function TMvCustomDrawingEngine.GetLayer(const AName: String): TMvLayer;
 var
   idx: Integer;
 begin
-  idx := IndexOfLayer(AName);
-  if idx <> -1 then
-    Result := TMvLayer(FLayerList[idx])
-  else
-    Result := nil;
+  LayerListEnter;
+  try
+    idx := IndexOfLayer(AName);
+    if idx <> -1 then
+      Result := TMvLayer(FLayerList[idx])
+    else
+      Result := nil;
+  finally
+    LayerListLeave;
+  end;
 end;
 
 function TMvCustomDrawingEngine.GetLayerCount: Integer;
 begin
-  Result := FLayerList.Count;
+  LayerListEnter;
+  try
+    Result := FLayerList.Count;
+  finally
+    LayerListLeave;
+  end;
 end;
 
 function TMvCustomDrawingEngine.IndexOfLayer(const AName: String): Integer;
 begin
-  for Result := 0 to FLayerList.Count-1 do
-    if SameText(GetLayer(Result).Name, AName) then
-      exit;
+  LayerListEnter;
+  try
+    for Result := 0 to FLayerList.Count-1 do
+      if SameText(GetLayer(Result).Name, AName) then
+        exit;
+  finally
+    LayerListLeave;
+  end;
   Result := -1;
 end;
 
@@ -192,13 +311,125 @@ procedure TMvCustomDrawingEngine.MoveLayer(CurIndex, NewIndex: Integer);
 begin
   if (CurIndex = 0) or (NewIndex = 0) then
     raise EMvDrawingEngine.Create('Cannot move map layer (index 0)');
-  FLayerList.Move(CurIndex, NewIndex);
-  UpdateLayerIndices;
+  LayerListEnter;
+  try
+    FLayerList.Move(CurIndex, NewIndex);
+    UpdateLayerIndices;
+  finally
+    LayerListLeave;
+  end;
 end;
 
 procedure TMvCustomDrawingEngine.SetActiveLayer(const AName: String);
 begin
-  FActiveLayer := GetLayer(AName);
+  LayerListEnter;
+  try
+    FActiveLayer := GetLayer(AName);
+  finally
+    LayerListLeave;
+  end;
+end;
+
+procedure TMvCustomDrawingEngine.LayerListEnter;
+begin
+  FLayerListLock.Enter;
+end;
+
+procedure TMvCustomDrawingEngine.LayerListLeave;
+begin
+  FLayerListLock.Leave;
+end;
+
+procedure TMvCustomDrawingEngine.LayerEnter(AIndex: Integer);
+var
+  ly : TMvLayer;
+begin
+  LayerListEnter;
+  try
+    ly := GetLayer(AIndex);
+    ly.LayerEnter;
+  finally
+    LayerListLeave;
+  end;
+end;
+
+function TMvCustomDrawingEngine.LayerEnter(const ALayerName: String): Boolean;
+var
+  ly : TMvLayer;
+begin
+  Result := False;
+  LayerListEnter;
+  try
+    ly := GetLayer(ALayerName);
+    if not Assigned(ly) then Exit;
+    ly.LayerEnter;
+  finally
+    LayerListLeave;
+  end;
+end;
+
+procedure TMvCustomDrawingEngine.LayerLeave(AIndex: Integer);
+var
+  ly : TMvLayer;
+begin
+  LayerListEnter;
+  try
+    ly := GetLayer(AIndex);
+    if not Assigned(ly) then Exit;
+    ly.LayerLeave;
+  finally
+    LayerListLeave;
+  end;
+end;
+
+procedure TMvCustomDrawingEngine.LayerLeave(const ALayerName: String);
+var
+  ly : TMvLayer;
+begin
+  LayerListEnter;
+  try
+    ly := GetLayer(ALayerName);
+    if not Assigned(ly) then Exit;
+    ly.LayerLeave;
+  finally
+    LayerListLeave;
+  end;
+end;
+
+procedure TMvCustomDrawingEngine.LayerEnterAll;
+var
+  ly : TMvLayer;
+  i : Integer;
+begin
+  LayerListEnter;
+  try
+    for i := 0 to FLayerList.Count-1 do
+    begin
+      ly := GetLayer(i);
+      if not Assigned(ly) then Continue;
+      ly.LayerEnter;
+    end;
+  finally
+    LayerListLeave;
+  end;
+end;
+
+procedure TMvCustomDrawingEngine.LayerLeaveAll;
+var
+  ly : TMvLayer;
+  i : Integer;
+begin
+  LayerListEnter;
+  try
+    for i := 0 to FLayerList.Count-1 do
+    begin
+      ly := GetLayer(i);
+      if not Assigned(ly) then Continue;
+      ly.LayerLeave;
+    end;
+  finally
+    LayerListLeave;
+  end;
 end;
 
 function TMvCustomDrawingEngine.TextHeight(const AText: String): Integer;
@@ -216,10 +447,15 @@ var
   i: Integer;
   layer: TMvLayer;
 begin
-  for i := 0 to FLayerList.Count-1 do
-  begin
-    layer := GetLayer(i);
-    layer.FIndex := i;
+  LayerListEnter;
+  try
+    for i := 0 to FLayerList.Count-1 do
+    begin
+      layer := GetLayer(i);
+      layer.FIndex := i;
+    end;
+  finally
+    LayerListLeave;
   end;
 end;
 
