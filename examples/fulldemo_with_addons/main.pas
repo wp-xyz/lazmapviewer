@@ -151,7 +151,6 @@ type
 
 const
   MAX_LOCATIONS_HISTORY = 50;
-  HOMEDIR = '../../../../../';   // share the cache in both fulldemo projects
   MAP_PROVIDER_FILENAME = 'map-providers.xml';
   USE_DMS = true;
 
@@ -409,6 +408,8 @@ end;
 procedure TMainForm.FormCreate(Sender: TObject);
 var
   fn: String;
+  homeDir: String;
+  cacheDir: String;
 begin
   cInputQueryEditSizePercents := 0;
 
@@ -424,8 +425,14 @@ begin
     POIImage.LoadFromFile(fn);
   end;
 
-  ForceDirectories(HOMEDIR + 'cache/');
-  MapView.CachePath := HOMEDIR + 'cache/';
+  homeDir := Application.Location + '../../../';  // this should be the "examples" folder
+  cacheDir := homeDir + 'cache/';
+  if not ForceDirectories(cacheDir) then
+  begin
+    cacheDir := GetAppConfigDir(false) + 'cache/';
+    ForceDirectories(cacheDir);
+  end;
+  MapView.CachePath := cacheDir;
   MapView.GetMapProviders(CbProviders.Items);
   CbProviders.ItemIndex := CbProviders.Items.IndexOf(MapView.MapProvider);
   MapView.DoubleBuffered := true;
@@ -592,10 +599,11 @@ begin
   try
     HERE_AppID := ini.ReadString('HERE', 'APP_ID', '');
     HERE_AppCode := ini.ReadString('HERE', 'APP_CODE', '');
-    OpenWeatherMap_ApiKey := ini.ReadString('OpenWeatherMap', 'API_Key', '');
+    ThunderForest_ApiKey := ini.ReadString('ThunderForest', 'API_Key', '');
 
     if ((HERE_AppID <> '') and (HERE_AppCode <> '')) or
-       (OpenWeatherMap_ApiKey <> '') then
+       (OpenWeatherMap_ApiKey <> '') or
+       (ThunderForest_ApiKey <> '') then
     begin
       MapView.Engine.ClearMapProviders;
       MapView.Engine.RegisterProviders;
@@ -765,6 +773,9 @@ begin
 
     if OpenWeatherMap_ApiKey <> '' then
       ini.WriteString('OpenWeatherMap', 'API_Key', OpenWeatherMap_ApiKey);
+
+    if ThunderForest_ApiKey <> '' then
+      ini.WriteString('ThunderForest', 'API_Key', ThunderForest_ApiKey);
 
     ini.EraseSection('Locations');
     for i := 0 to CbLocations.Items.Count-1 do

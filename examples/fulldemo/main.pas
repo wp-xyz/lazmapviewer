@@ -145,12 +145,10 @@ type
 const
   MAX_LOCATIONS_HISTORY = 50;
   MAP_PROVIDER_FILENAME = 'map-providers.xml';
-  HOMEDIR = '../../../../';   
   USE_DMS = true;
 
 var
   PointFormatSettings: TFormatsettings;
-  CacheDir: String = HOMEDIR + 'cache/';   // share the cache in both example projects
 
 function CalcIniName: String;
 begin
@@ -439,6 +437,8 @@ end;
 procedure TMainForm.FormCreate(Sender: TObject);
 var
   fn: String;
+  homeDir: String;
+  cacheDir: String;
 begin
   cInputQueryEditSizePercents := 0;
 
@@ -454,15 +454,16 @@ begin
     POIImage.LoadFromFile(fn);
   end;
 
-  CacheDir := HOMEDIR + 'cache/';
-  if not ForceDirectories(CacheDir) then
+  homeDir := Application.Location + '../../../';  // this should be the "examples" folder
+  cacheDir := homeDir + 'cache/';
+  if not ForceDirectories(cacheDir) then
   begin
-    CacheDir := GetAppConfigDir(false) + 'cache/';
-    ForceDirectories(CacheDir);
+    cacheDir := GetAppConfigDir(false) + 'cache/';
+    ForceDirectories(cacheDir);
   end;
-  MapView.CachePath := CacheDir;
+  MapView.CachePath := cacheDir;
   MapView.GetMapProviders(CbProviders.Items);
-  CbProviders.ItemIndex := CbProviders.Items.Indexof(MapView.MapProvider);
+  CbProviders.ItemIndex := CbProviders.Items.IndexOf(MapView.MapProvider);
   MapView.DoubleBuffered := true;
   MapView.Zoom := 1;
   CbZoomToCursor.Checked := MapView.ZoomToCursor;
