@@ -772,7 +772,6 @@ begin
       if APt.ExtraData.inheritsFrom(TDrawingExtraData) then
         PtColor := TDrawingExtraData(APt.ExtraData).Color;
     end;
-
     // Draw point marker
     if Assigned(FPOIImage) and not (FPOIImage.Empty) then
       DrawingEngine.DrawBitmap(Pt.X - FPOIImage.Width div 2, Pt.Y - FPOIImage.Height, FPOIImage, true)
@@ -783,7 +782,6 @@ begin
       DrawingEngine.Line(Pt.X - 5, Pt.Y, Pt.X + 5, Pt.Y);
       Pt.Y := Pt.Y + 5;
     end;
-
     // Draw point text
     s := APt.Name;
     if FPOITextBgColor = clNone then
@@ -795,7 +793,6 @@ begin
     end;
     extent := DrawingEngine.TextExtent(s);
     DrawingEngine.Textout(Pt.X - extent.CX div 2, Pt.Y + 5, s);
-
   finally
     GPSItems.Unlock;
   end;

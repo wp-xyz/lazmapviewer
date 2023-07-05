@@ -187,23 +187,26 @@ procedure TMvIntfGraphicsDrawingEngine.CreateBuffer(AWidth, AHeight: Integer);
 var
   i: Integer;
   layer: TMvIntfGraphicsLayer;
+  cnt : Integer;
 begin
   LayerListEnter;
   try
-    for i := 0 to FLayerList.Count-1 do
-    begin
-      layer := TMvIntfGraphicsLayer(GetLayer(i));
-      layer.LayerEnter;
-      try
-        layer.FCanvas.Free;
-        layer.FBuffer.Free;
-        CreateLazIntfImageAndCanvas(layer.FBuffer, layer.FCanvas, AWidth, AHeight);
-      finally
-        layer.LayerLeave;
-      end;
-    end;
+    cnt := FLayerList.Count;
   finally
     LayerListLeave;
+  end;
+  for i := 0 to cnt-1 do
+  begin
+    layer := TMvIntfGraphicsLayer(GetLayer(i));
+    if not Assigned(layer) then Continue;
+    layer.LayerEnter;
+    try
+      layer.FCanvas.Free;
+      layer.FBuffer.Free;
+      CreateLazIntfImageAndCanvas(layer.FBuffer, layer.FCanvas, AWidth, AHeight);
+    finally
+      layer.LayerLeave;
+    end;
   end;
 end;
 
@@ -413,19 +416,17 @@ end;
 function TMvIntfGraphicsDrawingEngine.GetLockActiveCanvas(
   var ALockedLayer: TMvIntfGraphicsLayer): TFpCustomCanvas;
 begin
+  Result := Nil;
   ALockedLayer := GetLockActiveLayer;
-  Result := ALockedLayer.Canvas;
+  if Assigned(ALockedLayer) then
+    Result := ALockedLayer.Canvas;
 end;
 
 function TMvIntfGraphicsDrawingEngine.GetLockActiveLayer: TMvIntfGraphicsLayer;
 begin
-  LayerListEnter;
-  try
-    Result := TMvIntfGraphicsLayer(GetActiveLayer);
+  Result := TMvIntfGraphicsLayer(GetActiveLayer);
+  if Assigned(Result) then
     Result.LayerEnter;
-  finally
-    LayerListLeave;
-  end;
 end;
 
 function TMvIntfGraphicsDrawingEngine.GetBrushColor: TColor;
@@ -441,7 +442,8 @@ begin
     else
       Result := 0;
   finally
-    layer.LayerLeave;
+    if Assigned(layer) then
+      layer.LayerLeave;
   end;
 end;
 
@@ -458,7 +460,8 @@ begin
     else
       Result := bsSolid;
   finally
-    layer.LayerLeave;
+    if Assigned(layer) then
+      layer.LayerLeave;
   end;
 end;
 
@@ -470,7 +473,8 @@ begin
     layer := GetLockActiveLayer;
     Result := layer.FontColor;
   finally
-    layer.LayerLeave;
+    if Assigned(layer) then
+      layer.LayerLeave;
   end;
 end;
 
@@ -482,7 +486,8 @@ begin
     layer := GetLockActiveLayer;
     Result := layer.FontName;
   finally
-    layer.LayerLeave;
+    if Assigned(layer) then
+      layer.LayerLeave;
   end;
 end;
 
@@ -494,7 +499,8 @@ begin
     layer := GetLockActiveLayer;
     Result := layer.FontSize;
   finally
-    layer.LayerLeave;
+    if Assigned(layer) then
+      layer.LayerLeave;
   end;
 end;
 
@@ -506,7 +512,8 @@ begin
     layer := GetLockActiveLayer;
     Result := layer.FontStyle;
   finally
-    layer.LayerLeave;
+    if Assigned(layer) then
+      layer.LayerLeave;
   end;
 end;
 
@@ -534,7 +541,8 @@ begin
     else
       Result := 0;
   finally
-    layer.LayerLeave;
+    if Assigned(layer) then
+      layer.LayerLeave;
   end;
 end;
 
@@ -551,7 +559,8 @@ begin
     else
       Result := 0;
   finally
-    layer.LayerLeave;
+    if Assigned(layer) then
+      layer.LayerLeave;
   end;
 end;
 
@@ -566,10 +575,10 @@ begin
     if Assigned(canv) then
       canv.Line(X1, Y1, X2, Y2);
   finally
-    layer.LayerLeave;
+    if Assigned(layer) then
+      layer.LayerLeave;
   end;
 end;
-
 procedure TMvIntfGraphicsDrawingEngine.MergeLayers;
 var
   i: Integer;
@@ -578,52 +587,46 @@ var
   canv: TLazCanvas;
   buf: TLazIntfImage;
 begin
-  LayerListEnter;
+  output_layer := TMvIntfGraphicsLayer(LayerEnter(0));
+  if not Assigned(output_layer) then Exit;
   try
-    LayerEnter(0);
+    output_canv := output_layer.Canvas as TLazCanvas;
+    map_layer := TMvIntfGraphicsLayer(LayerEnter(1));
+    if not Assigned(map_layer) then Exit;
     try
-      output_layer := GetLayer(0);
-      output_canv := output_layer.Canvas as TLazCanvas;
-
-      LayerEnter(1);
-      try
-        map_layer := GetLayer(1);
-        output_layer.Buffer.CopyPixels(map_layer.Buffer);
-      finally
-        LayerLeave(1);
-      end;
-
-      for i := 2 to FLayerList.Count-1 do
-      begin
-        LayerEnter(i);
-        try
-          layer := GetLayer(i);
-          canv := layer.Canvas as TLazCanvas;
-          buf := layer.Buffer;
-          output_canv.AlphaBlend(canv, 0, 0, 0, 0, buf.Width, buf.Height);
-        finally
-          LayerLeave(i);
-        end;
-      end;
+      output_layer.Buffer.CopyPixels(map_layer.Buffer);
     finally
-      LayerLeave(0);
+      map_layer.LayerLeave;
+    end;
+    for i := 2 to FLayerList.Count-1 do
+    begin
+      layer := TMvIntfGraphicsLayer(LayerEnter(i));
+      if not Assigned(layer) then Continue;
+      try
+        canv := layer.Canvas as TLazCanvas;
+        buf := layer.Buffer;
+        output_canv.AlphaBlend(canv, 0, 0, 0, 0, buf.Width, buf.Height);
+      finally
+        layer.LayerLeave;
+      end;
     end;
   finally
-    LayerListLeave;
+    output_layer.LayerLeave;
   end;
 end;
-
 
 procedure TMvIntfGraphicsDrawingEngine.PaintToCanvas(ACanvas: TCanvas);
 var
   bmp: TBitmap;
+  output_layer : TMvIntfGraphicsLayer;
   output_buf: TLazIntfImage;
 begin
   if not Assigned(ACanvas) then Exit;
   MergeLayers;
-  LayerEnter(0);
+  output_layer := TMvIntfGraphicsLayer(LayerEnter(0));
+  if not Assigned(output_layer) then Exit;
   try
-    output_buf := GetLayer(0).Buffer;
+    output_buf := output_layer.Buffer;
     bmp := TBitmap.Create;
     try
       bmp.PixelFormat := pf32Bit;
@@ -634,7 +637,7 @@ begin
       bmp.Free;
     end;
   finally
-    Layerleave(0);
+    output_layer.LayerLeave;
   end;
 end;
 
@@ -649,7 +652,8 @@ begin
     if Assigned(canv) then
       canv.Rectangle(X1,Y1, X2, Y2);
   finally
-    layer.LayerLeave;
+    if Assigned(layer) then
+      layer.LayerLeave;
   end;
 end;
 
@@ -668,7 +672,8 @@ begin
     Result.Canvas.FillRect(0, 0, Result.Width, Result.Height);
     Result.LoadFromIntfImage(buf);
   finally
-    layer.LayerLeave;
+    if Assigned(layer) then
+      layer.LayerLeave;
   end;
 end;
 
@@ -683,7 +688,8 @@ begin
     if Assigned(canv) then
       canv.Brush.FPColor := TColorToFPColor(AValue);
   finally
-    layer.LayerLeave;
+    if Assigned(layer) then
+      layer.LayerLeave;
   end;
 end;
 
@@ -698,7 +704,8 @@ begin
     if Assigned(canv) then
       canv.Brush.Style := AValue;
   finally
-    layer.LayerLeave;
+    if Assigned(layer) then
+      layer.LayerLeave;
   end;
 end;
 
@@ -710,7 +717,8 @@ begin
     layer := GetLockActiveLayer;
     layer.FontColor := AValue;
   finally
-    layer.LayerLeave;
+    if Assigned(layer) then
+      layer.LayerLeave;
   end;
 end;
 
@@ -722,7 +730,8 @@ begin
     layer := GetLockActiveLayer;
     layer.FontName := AValue;
   finally
-    layer.LayerLeave;
+    if Assigned(layer) then
+      layer.LayerLeave;
   end;
 end;
 
@@ -734,7 +743,8 @@ begin
     layer := GetLockActiveLayer;
     layer.FontSize := AValue;
   finally
-    layer.LayerLeave;
+    if Assigned(layer) then
+      layer.LayerLeave;
   end;
 end;
 
@@ -746,7 +756,8 @@ begin
     layer := GetLockActiveLayer;
     layer.FontStyle := AValue;
   finally
-    layer.LayerLeave;
+    if Assigned(layer) then
+      layer.LayerLeave;
   end;
 end;
 
@@ -761,7 +772,8 @@ begin
     if Assigned(canv) then
       canv.Pen.FPColor := TColorToFPColor(AValue);
   finally
-    layer.LayerLeave;
+    if Assigned(layer) then
+      layer.LayerLeave;
   end;
 end;
 
@@ -776,10 +788,10 @@ begin
     if Assigned(canv) then
       canv.Pen.Width := AValue;
   finally
-    layer.LayerLeave;
+    if Assigned(layer) then
+      layer.LayerLeave;
   end;
 end;
-
 function TMvIntfGraphicsDrawingEngine.TextExtent(const AText: String): TSize;
 var
   layer: TMvIntfGraphicsLayer;
@@ -789,8 +801,8 @@ var
   fsz : Integer;
   fst : TFontStyles;
 begin
+  layer := GetLockActiveLayer;
   try
-    layer := GetLockActiveLayer;
     fn := layer.FontName;
     fsz := layer.FontSize;
     fst := layer.FontStyle;
@@ -892,7 +904,8 @@ begin
       bmp.Free;
     end;
   finally
-    layer.LayerLeave;
+    if Assigned(layer) then
+      layer.LayerLeave;
   end;
 end;
 
