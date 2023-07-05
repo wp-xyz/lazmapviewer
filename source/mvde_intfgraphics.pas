@@ -7,7 +7,6 @@
   for details about the license.
 
   See also: https://wiki.lazarus.freepascal.org/FPC_modified_LGPL
-
 }
 
 unit mvDE_IntfGraphics;
