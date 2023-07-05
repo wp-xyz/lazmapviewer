@@ -18,7 +18,6 @@ object MainForm: TMainForm
     Top = 0
     Width = 608
     Align = alClient
-    CachePath = '../../../../cache/'
     Cyclic = True
     DefaultTrackColor = clBlue
     DefaultTrackWidth = 3

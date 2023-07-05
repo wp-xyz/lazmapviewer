@@ -1282,6 +1282,11 @@ begin
   if FActive = AValue then Exit;
   FActive := AValue;
 
+  // One problem at designtime is that the control is creating cache directories
+  // at unexpected places when Cache.BasePath is relative
+  if csDesigning in ComponentState then
+    exit;
+
   if not FActive then
     Queue.CancelAllJob(self)
   else begin
@@ -1305,7 +1310,6 @@ end;
 
 procedure TMapViewerEngine.SetCachePath(AValue: String);
 begin
-  ForceDirectories(aValue);
   Cache.BasePath := aValue;
 end;
 
