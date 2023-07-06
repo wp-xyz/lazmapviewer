@@ -388,10 +388,10 @@ var
   rnd : Integer;
 begin
   Result := Nil;
+  RandSeed := (RandSeed + GetTickCount) and $FFFFFFFF;
   repeat
     repeat
       if LayerListTryEnter then Break;
-      RandSeed := GetTickCount;
       rnd := Random(3); // returns 0,1 or 2
       Sleep(rnd);
     until False;
@@ -406,7 +406,6 @@ begin
     finally
       LayerListLeave;
     end;
-    RandSeed := GetTickCount;
     rnd := Random(3); // returns 0,1 or 2
     Sleep(rnd);
   until False;
@@ -418,10 +417,10 @@ var
   rnd : Integer;
 begin
   Result := Nil;
+  RandSeed := (RandSeed + GetTickCount) and $FFFFFFFF;
   repeat
     repeat
       if LayerListTryEnter then Break;
-      RandSeed := GetTickCount;
       rnd := Random(3); // returns 0,1 or 2
       Sleep(rnd);
     until False;
@@ -436,7 +435,6 @@ begin
     finally
       LayerListLeave;
     end;
-    RandSeed := GetTickCount;
     rnd := Random(3);
     Sleep(rnd);
   until False;
