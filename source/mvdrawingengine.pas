@@ -105,15 +105,21 @@ type
       A prior call to LayerListEnter is mandatory!}
     procedure LayerListLeave;
     {LayerEnter grants an exclusive access to the layer (and blocks other threads) until
-      LayerLeave is called. Always(!) combine the calls with a try...finally-block}
+      layers LayerLeave-Methods is called.
+      It is highle recommended to combine the calls with a try...finally-block!
+      Example of usage:
+        layer : TMvLayer;
+        (...)
+        layer := LayerEnter(0);
+        if Assigned(layer) then
+        try
+          // Do something with the layer
+        finally
+          layer.LayerLeave
+        end;
+    }
     function LayerEnter(AIndex: Integer) : TMvLayer;
     function LayerEnter(const ALayerName : String) : TMvLayer;
-    {LayerLeave terminates the exclusive access to the layer of the calling thread,
-      A prior call to LayerEnter is mandatory!}
-    procedure LayerLeave(AIndex : Integer);
-    procedure LayerLeave(const ALayerName : String);
-    procedure LayerEnterAll;
-    procedure LayerLeaveAll;
 
     // Graphics operations
     procedure CreateBuffer(AWidth, AHeight: Integer); virtual; abstract;
@@ -388,7 +394,7 @@ var
   rnd : Integer;
 begin
   Result := Nil;
-  RandSeed := (RandSeed + GetTickCount) and $FFFFFFFF;
+  RandSeed := (RandSeed + GetTickCount64) and $FFFFFFFF;
   repeat
     repeat
       if LayerListTryEnter then Break;
@@ -417,7 +423,7 @@ var
   rnd : Integer;
 begin
   Result := Nil;
-  RandSeed := (RandSeed + GetTickCount) and $FFFFFFFF;
+  RandSeed := (RandSeed + GetTickCount64) and $FFFFFFFF;
   repeat
     repeat
       if LayerListTryEnter then Break;
@@ -440,46 +446,6 @@ begin
   until False;
 end;
 
-procedure TMvCustomDrawingEngine.LayerLeave(AIndex: Integer);
-var
-  ly : TMvLayer;
-begin
-  ly := GetLayer(AIndex);
-  if not Assigned(ly) then Exit;
-  ly.LayerLeave;
-end;
-
-procedure TMvCustomDrawingEngine.LayerLeave(const ALayerName: String);
-var
-  ly : TMvLayer;
-begin
-  ly := GetLayer(ALayerName);
-  if not Assigned(ly) then Exit;
-  ly.LayerLeave;
-end;
-
-procedure TMvCustomDrawingEngine.LayerEnterAll;
-var
-  ly : TMvLayer;
-  i : Integer;
-  cnt : Integer;
-begin
-  cnt := GetLayerCount;
-  for i := 0 to cnt-1 do
-    LayerEnter(i);
-end;
-
-procedure TMvCustomDrawingEngine.LayerLeaveAll;
-var
-  ly : TMvLayer;
-  i : Integer;
-  cnt : Integer;
-begin
-  cnt := GetLayerCount;
-  for i := 0 to cnt-1 do
-    LayerLeave(i);
-end;
-
 function TMvCustomDrawingEngine.TextHeight(const AText: String): Integer;
 begin
   Result := TextExtent(AText).CX;
@@ -499,8 +465,13 @@ begin
   try
     for i := 0 to FLayerList.Count-1 do
     begin
-      layer := GetLayer(i);
-      layer.FIndex := i;
+      layer := LayerEnter(i);
+      if Assigned(layer) then
+      try
+        layer.FIndex := i;
+      finally
+        layer.LayerLeave;
+      end;
     end;
   finally
     LayerListLeave;

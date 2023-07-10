@@ -197,9 +197,8 @@ begin
   end;
   for i := 0 to cnt-1 do
   begin
-    layer := TMvIntfGraphicsLayer(GetLayer(i));
+    layer := TMvIntfGraphicsLayer(LayerEnter(i));
     if not Assigned(layer) then Continue;
-    layer.LayerEnter;
     try
       layer.FCanvas.Free;
       layer.FBuffer.Free;
