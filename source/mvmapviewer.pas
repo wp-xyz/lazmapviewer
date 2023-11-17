@@ -977,8 +977,18 @@ begin
 end;
 
 procedure TMapView.GetMapProviders(lstProviders: TStrings);
+var
+  L: TStringList;
 begin
-  Engine.GetMapProviders(lstProviders);
+  L := TStringList.Create;
+  try
+    Engine.GetMapProviders(L);
+    L.Sort;
+    lstProviders.Assign(L);
+  finally
+    L.Free;
+  end;
+//  Engine.GetMapProviders(lstProviders);
 end;
 
 procedure TMapView.WaitEndOfRendering;
